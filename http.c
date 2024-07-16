@@ -9,13 +9,8 @@
 typedef struct sockaddr_in SOCKADDR_IN;
 
 #define PORT 3000
-#define MAX 2048
+#define MAX_REQUEST_SIZE 2048
 #define NB_THREADS 10
-
-typedef struct {
-    int sock;
-    int thread_number;
-} connection_t;
 
 void* accept_connection(void* sock) {
     if (listen(*(int*)sock, 1) != 0) {
@@ -29,13 +24,11 @@ void* accept_connection(void* sock) {
         if ((client_fd = accept(*(int*)sock, (struct sockaddr*)&client_address, &client_address_len)) == -1) {
             return NULL;
         }
-        char buffer[MAX];
-        long size;
-        if ((size = read(client_fd, buffer, MAX)) != -1) {
-            for (int i = 0; i < size; i++) {
-                printf("%c", buffer[i]);
-            }
-            bzero(buffer, size);
+        char buffer[MAX_REQUEST_SIZE];
+        int size;
+        if ((size = read(client_fd, buffer, MAX_REQUEST_SIZE)) != -1) {
+            printf("%.*s\n", size, buffer);
+            memset(buffer, 0, size);
         }
         const char *response =
                 "HTTP/1.1 200 OK\r\n"
@@ -52,22 +45,22 @@ void* accept_connection(void* sock) {
 int main() {
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock == -1) {
-        printf("Error creating the socket");
+        printf("Error creating socket");
         exit(-1);
     }
     SOCKADDR_IN sin;
     sin.sin_family= AF_INET;
     sin.sin_port = htons(PORT);
     sin.sin_addr.s_addr = INADDR_ANY;
+
     if (bind(sock, (struct sockaddr*)&sin, sizeof(sin)) != 0) {
-        printf("Error binding");
+        printf("Error binding socket");
         exit(-1);
     }
 
     pthread_t threads[NB_THREADS];
     int i;
     for (i = 0; i < NB_THREADS; i++){
-        connection_t connection;
         pthread_create(&threads[i], NULL, accept_connection, &sock);
         i++;
     }
