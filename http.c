@@ -8,9 +8,24 @@
 
 typedef struct sockaddr_in SOCKADDR_IN;
 
+#define str(x) #x
+
 #define PORT 3000
 #define MAX_REQUEST_SIZE 2048
 #define NB_THREADS 10
+
+typedef enum {GET, POST, PUT, PATCH, DELETE} METHOD;
+
+typedef struct {
+    char* name;
+    char* value;
+} HEADER;
+
+typedef struct {
+    METHOD method;
+    HEADER* headers;
+    char* body;
+} request_t;
 
 void* accept_connection(void* sock) {
     if (listen(*(int*)sock, 1) != 0) {
