@@ -73,29 +73,3 @@ void free_tree(tree_t *tree, tree_map_function_t free_function)
    }
    free_function(tree);
 }
-
-void print_tree_string(tree_t *tree)
-{
-   printf("%s ", (char *)tree->element);
-}
-
-#ifdef TREE_MAIN
-
-int main()
-{
-   tree_t *tree = init_tree("salut");
-   add_child(tree, "salut2");
-   add_child(tree, "salut3");
-   map_tree(tree, (tree_map_function_t)print_tree_string);
-   free_tree(tree, (tree_map_function_t)free_when_elem_not_malloced);
-
-   char *str = malloc(strlen("salut4") + 1);
-   memcpy(str, "salut4", strlen("salut4"));
-   str[strlen("salut4")] = '\0';
-   tree = init_tree(str);
-   map_tree(tree, (tree_map_function_t)print_tree_string);
-   free_tree(tree, (tree_map_function_t)free_when_elem_malloced);
-   return 0;
-}
-
-#endif
