@@ -1,34 +1,37 @@
 ```c
 int main(int argc, char **argv)
 {
+   int port;
+   if (argc > 1)
+   {
+      port = atoi(argv[1]);
+   }
+   else
+   {
+      printf("Please enter a port number");
+      exit(-1);
+   }
+   if (argc > 2)
+   {
+      nb_processes = atoi(argv[2]);
+   }
 
-    int port;
-    int nb_threads = NB_THREADS;
-    if (argc > 1)
-    {
-        port = atoi(argv[1]);
-    }
-    else
-    {
-        printf("Please enter a port number");
-        exit(-1);
-    }
-    if (argc > 2)
-    {
-        nb_threads = atoi(argv[2]);
-    }
+   char hostname[_SC_HOST_NAME_MAX + 1];
+   gethostname(hostname, _SC_HOST_NAME_MAX + 1);
 
-    char hostname[_SC_HOST_NAME_MAX + 1];
-    gethostname(hostname, _SC_HOST_NAME_MAX + 1);
+   const endpoint_t endpoints[] = {
+       {"/hostname", hostname, ET_TEXT, TEXT},
+       {"/", "src/index.html", ET_FILE, HTML},
+       {"/test", test_function, ET_FUNC, HTML},
+       {"/public", "src/public/", ET_DIRECTORY, HTML}};
 
-    endpoint_t endpoints[] = {
-        {"/hostname", hostname, ET_TEXT, TEXT},
-        {"/", "src/index.html", ET_FILE, HTML},
-        {"/test", test_function, ET_FUNC, HTML}};
+   http_tree = build_http_tree(endpoints, sizeof(endpoints) / sizeof(endpoint_t));
+   print_http_tree(http_tree, 0);
+   parent_pid = getpid();
+   printf("Starting server on process %d\n", parent_pid);
+   start_server(port);
 
-    tree_t *http_tree = build_http_tree(endpoints, sizeof(endpoints) / sizeof(endpoint_t));
-    start_server(http_tree, port, nb_threads);
-    return 0;
+   return 0;
 }
 ```
 
