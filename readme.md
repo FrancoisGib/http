@@ -18,15 +18,12 @@ int main(int argc, char **argv)
         nb_threads = atoi(argv[2]);
     }
 
-    char hostname_resource[32] = "<p>";
     char hostname[_SC_HOST_NAME_MAX + 1];
     gethostname(hostname, _SC_HOST_NAME_MAX + 1);
-    strcat(hostname_resource, hostname);
-    strcat(hostname_resource, "</p>");
 
     endpoint_t endpoints[] = {
-        {"/", hostname_resource, ET_TEXT, HTML},
-        {"/home", "src/index.html", ET_FILE, HTML},
+        {"/hostname", hostname, ET_TEXT, TEXT},
+        {"/", "src/index.html", ET_FILE, HTML},
         {"/test", test_function, ET_FUNC, HTML}};
 
     tree_t *http_tree = build_http_tree(endpoints, sizeof(endpoints) / sizeof(endpoint_t));
@@ -53,8 +50,8 @@ url: /1/2/3
 Here, there's is one endpoint and three trees whose paths are /1, /2 and /3. But the only resource served is at the /1/2/3 endpoint.
 
 In the main example, the tree structure is:
-```bash
-├── / serving machine hostname
-    └── /home serving an http file with "Hello world" content
-    └── /test serving "<p>ça marche</p>" (returned by a function taking the content of the request, so it can be set dynamically)
+```
+├── / serving an http file with "Hello world" content
+    └── /hostname serving machine hostname
+    └── /test serving "<p>test</p>" (returned by a function taking the content of the request, so it can be set dynamically)
 ```

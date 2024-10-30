@@ -27,7 +27,7 @@ typedef char *(*resource_function)(void *);
 
 char *test_function(void *content)
 {
-    return "<p>ça marche</p>";
+    return "<p>test</p>";
 }
 
 void construct_response(tree_t *http_tree, int sock, char *method, char *path, char *content, char *content_type)
@@ -35,8 +35,7 @@ void construct_response(tree_t *http_tree, int sock, char *method, char *path, c
     endpoint_t *endpoint = get_endpoint(http_tree, path);
     if (endpoint != NULL)
     {
-        // printf("endpoint %s %s %s %s\n", endpoint->path, print_endpoint_type(endpoint->type), endpoint->resource, print_content_type(endpoint->content_type));
-        char response[1256] =
+        char response[2048] =
             "HTTP/1.1 200 OK\r\n";
 
         int content_length;
@@ -126,7 +125,7 @@ void parse_http_request(char *request, tree_t *http_tree, int sock)
             break;
         else
         {
-            char *header_name = strtok_r(header, ":", &header); // header is now the header value when tok
+            char *header_name = strtok_r(header, ":", &header);
             header++;
             char *header_value = header;
             header_t *new_header = malloc(sizeof(header_t));
@@ -194,7 +193,6 @@ void *accept_connection(void *params)
         int size;
         if ((size = read(client_fd, buffer, MAX_REQUEST_SIZE)) != -1)
         {
-            // printf("%.*s", size, buffer);
             parse_http_request(buffer, thread_params.endpoints, client_fd);
             memset(buffer, 0, size);
         }
@@ -269,8 +267,8 @@ int main(int argc, char **argv)
     gethostname(hostname, _SC_HOST_NAME_MAX + 1);
 
     endpoint_t endpoints[] = {
-        {"/", hostname, ET_TEXT, TEXT},
-        {"/home", "src/index.html", ET_FILE, HTML},
+        {"/hostname", hostname, ET_TEXT, TEXT},
+        {"/", "src/index.html", ET_FILE, HTML},
         {"/test", test_function, ET_FUNC, HTML}};
 
     tree_t *http_tree = build_http_tree(endpoints, sizeof(endpoints) / sizeof(endpoint_t));
