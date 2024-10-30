@@ -68,23 +68,3 @@ void free_with_arg(ll_node_t *node)
    free(node->element);
    free(node);
 }
-
-void print_node_string(ll_node_t *node)
-{
-   printf("%s ", (char *)node->element);
-}
-
-#ifdef LINKED_LIST_MAIN
-
-int main()
-{
-   char salut[] = "salut";
-   char salut2[] = "salut2";
-   ll_node_t *root = insert_in_head(NULL, salut);
-   insert_in_tail(root, salut2);
-   map_linked_list(root, (ll_map_function_t)print_node_string);
-   free_linked_list(root, (ll_map_function_t)free);
-   return 0;
-}
-
-#endif
