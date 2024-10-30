@@ -265,14 +265,11 @@ int main(int argc, char **argv)
         nb_threads = atoi(argv[2]);
     }
 
-    char hostname_resource[32] = "<p>";
     char hostname[_SC_HOST_NAME_MAX + 1];
     gethostname(hostname, _SC_HOST_NAME_MAX + 1);
-    strcat(hostname_resource, hostname);
-    strcat(hostname_resource, "</p>");
 
     endpoint_t endpoints[] = {
-        {"/", hostname_resource, ET_TEXT, HTML},
+        {"/", hostname, ET_TEXT, TEXT},
         {"/home", "src/index.html", ET_FILE, HTML},
         {"/test", test_function, ET_FUNC, HTML}};
 
