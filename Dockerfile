@@ -1,5 +1,6 @@
 FROM scratch
 
-COPY a.out /
+COPY http /
+COPY src ./
 
-CMD ["./a.out", "8080"]
+ENTRYPOINT ["./http", "8080"]
