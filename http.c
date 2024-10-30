@@ -6,8 +6,9 @@ int nb_processes = NB_PROCESSES;
 tree_t *http_tree;
 pid_t parent_pid;
 
-void sigint_handler()
+void sigint_handler(int code)
 {
+   printf("Process %d ended\n", getpid());
    if (sock != -1)
    {
       close(sock);
@@ -24,77 +25,104 @@ void sigint_handler()
    exit(0);
 }
 
-char *test_function(void *content)
+const char *test_function(void *content)
 {
    return "<p>test</p>";
 }
 
-void construct_response(tree_t *http_tree, int sock, char *method, char *path, char *content, char *content_type)
+void construct_response(int client_socket, char *method, char *path, char *content, char *content_type)
 {
    endpoint_t *endpoint = get_endpoint(http_tree, path);
-   if (endpoint != NULL)
+   if (endpoint == NULL)
    {
-      char response[2048] = "HTTP/1.1 200 OK\r\n";
-
-      int content_length;
-      char buffer[1024];
-      memset(buffer, 0, 1024);
-      if (endpoint->type == ET_FILE)
-      {
-         printf("resource %s\n", (char *)endpoint->resource);
-         if (access(endpoint->resource, R_OK) == 0)
-         {
-            FILE *file = fopen(endpoint->resource, "r");
-            fread(buffer, 1024, 1, file);
-            content_length = strlen(buffer);
-         }
-         else
-         {
-            char message[] = "Error";
-            strcpy(buffer, message);
-            content_length = strlen(message);
-         }
-      }
-      else if (endpoint->type == ET_TEXT)
-      {
-         strcpy(buffer, endpoint->resource);
-         content_length = strlen(endpoint->resource);
-      }
-      else if (endpoint->type == ET_FUNC)
-      {
-         resource_function function = endpoint->resource;
-         char *response_content = function((void *)content);
-         content_length = strlen(response_content);
-         strcpy(buffer, response_content);
-      }
-
-      char content_length_buffer[5];
-      sprintf(content_length_buffer, "%d", content_length);
-
-      char content_length_str[32] = "Content-Length: ";
-      strcat(content_length_str, content_length_buffer);
-      strcat(content_length_str, "\r\n");
-
-      char content_type_str[64] = "Content-Type: ";
-      strcat(content_type_str, print_content_type(endpoint->content_type));
-      strcat(content_type_str, "\r\n\r\n");
-
-      strcat(response, content_length_str);
-      strcat(response, content_type_str);
-
-      strcat(response, buffer);
-
-      printf("-----------------\n%s\n-----------------\n", response);
-
-      write(sock, response, strlen(response));
+      printf("No endpoint for path: %s \n", path);
+      return;
    }
-   else
+   char response[2048] = "HTTP/1.1 200 OK\r\n";
+
+   int content_length = 0;
+   char buffer[1024];
+   memset(buffer, 0, 1024);
+   if (endpoint->type == ET_FILE)
    {
-      printf("NULL\n");
+      printf("resource %s\n", (char *)endpoint->resource);
+      if (access(endpoint->resource, R_OK) == 0)
+      {
+         FILE *file = fopen(endpoint->resource, "r");
+         content_length = (int)fread(buffer, 1, 1024, file);
+         fclose(file);
+      }
+      else
+      {
+         char message[] = "Error";
+         strcpy(buffer, message);
+         content_length = strlen(message);
+      }
+   }
+   else if (endpoint->type == ET_TEXT)
+   {
+      strcpy(buffer, endpoint->resource);
+      content_length = strlen(endpoint->resource);
+   }
+   else if (endpoint->type == ET_FUNC)
+   {
+      resource_function function = (resource_function)endpoint->resource;
+      const char *response_content = function((void *)content);
+      content_length = (int)strlen(response_content);
+      strcpy(buffer, response_content);
+   }
+   else if (endpoint->type == ET_DIRECTORY)
+   {
+      while (strncmp(path, endpoint->path, strlen(endpoint->path)) != 0)
+      {
+         path++;
+         printf("path %s\n", path);
+      }
+      path += strlen(endpoint->path) + 1; /* pass the \0 made by get_endpoint */
+      char file_path[strlen(path) + strlen((char *)endpoint->resource) + 1];
+      strcpy(file_path, endpoint->resource);
+      strcat(file_path, path);
+      printf("path %s\n", file_path);
+      if (access(file_path, R_OK) == 0)
+      {
+         FILE *file = fopen(file_path, "r");
+         content_length = (int)fread(buffer, 1, 1024, file);
+         fclose(file);
+      }
+      else
+      {
+         char message[] = "Error";
+         strcpy(buffer, message);
+         content_length = strlen(message);
+      }
+   }
+
+   char content_length_buffer[5];
+   sprintf(content_length_buffer, "%d", content_length);
+
+   char content_length_str[32] = "Content-Length: ";
+   strcat(content_length_str, content_length_buffer);
+   strcat(content_length_str, "\r\n");
+
+   char content_type_str[64] = "Content-Type: ";
+   strcat(content_type_str, print_content_type(endpoint->content_type));
+   strcat(content_type_str, "\r\n\r\n");
+
+   strcat(response, content_length_str);
+   strcat(response, content_type_str);
+
+   strcat(response, buffer);
+
+   printf("-----------------\n%s\n-----------------\n", response);
+
+   int write_size = (int)write(client_socket, response, strlen(response));
+   if (write_size < (int)strlen(response))
+   {
+      printf("Error while sending response\n");
    }
 }
 
-void parse_http_request(char *request, tree_t *http_tree, int sock)
+void parse_http_request(char *request, int client_socket)
 {
    char *rest = request;
    char *method = strtok_r(rest, " ", &rest);
@@ -118,9 +146,11 @@ void parse_http_request(char *request, tree_t *http_tree, int sock)
    char *header = rest;
    while (*header != '\0')
    {
-      char *header = strtok_r(rest, "\n", &rest);
+      header = strtok_r(rest, "\n", &rest);
       if (*header == '\r' || *(header + 1) == '\r')
+      {
          break;
+      }
       else
       {
          char *header_name = strtok_r(header, ":", &header);
@@ -160,41 +190,41 @@ void parse_http_request(char *request, tree_t *http_tree, int sock)
       content[content_length] = '\0';
       memcpy(content, rest, content_length);
       printf("Content: %s\n", content);
-      construct_response(http_tree, sock, method, path, content, content_type);
+      construct_response(client_socket, method, path, content, content_type);
    }
    else
    {
-      construct_response(http_tree, sock, method, path, NULL, content_type);
+      construct_response(client_socket, method, path, NULL, content_type);
    }
 }
 
-void accept_connection(int sock, tree_t *http_tree)
+void accept_connection(void)
 {
    SOCKADDR_IN client_address;
    unsigned int client_address_len = sizeof(client_address);
-   int client_fd;
+   int client_socket;
 
    while (1)
    {
-      client_fd = accept(sock, (struct sockaddr *)&client_address, &client_address_len);
-      if (client_fd == -1)
+      client_socket = accept(sock, (struct sockaddr *)&client_address, &client_address_len);
+      if (client_socket == -1)
       {
          perror("Error accepting connection");
          exit(EXIT_FAILURE);
       }
 
       char buffer[MAX_REQUEST_SIZE];
-      int size = read(client_fd, buffer, MAX_REQUEST_SIZE);
+      int size = read(client_socket, buffer, MAX_REQUEST_SIZE);
       if (size > 0)
       {
-         parse_http_request(buffer, http_tree, client_fd);
+         parse_http_request(buffer, client_socket);
          memset(buffer, 0, size);
       }
-      close(client_fd);
+      close(client_socket);
    }
 }
 
-void start_server(tree_t *http_tree, int port)
+void start_server(int port)
 {
    signal(SIGINT, sigint_handler);
 
@@ -236,7 +266,7 @@ void start_server(tree_t *http_tree, int port)
       if (pid == 0)
       {
          printf("Worker process %d listening for requests\n", getpid());
-         accept_connection(sock, http_tree);
+         accept_connection();
          exit(0);
       }
       else if (pid < 0)
@@ -247,7 +277,7 @@ void start_server(tree_t *http_tree, int port)
    }
 
    while (wait(NULL) > 0)
-      ; // Wait for all child processes to finish
+      ; /* Wait for all child processes to finish */
 }
 
 int main(int argc, char **argv)
@@ -270,15 +300,17 @@ int main(int argc, char **argv)
    char hostname[_SC_HOST_NAME_MAX + 1];
    gethostname(hostname, _SC_HOST_NAME_MAX + 1);
 
-   endpoint_t endpoints[] = {
+   const endpoint_t endpoints[] = {
        {"/hostname", hostname, ET_TEXT, TEXT},
        {"/", "src/index.html", ET_FILE, HTML},
-       {"/test", test_function, ET_FUNC, HTML}};
+       {"/test", test_function, ET_FUNC, HTML},
+       {"/public", "src/public/", ET_DIRECTORY, HTML}};
 
    http_tree = build_http_tree(endpoints, sizeof(endpoints) / sizeof(endpoint_t));
+   print_http_tree(http_tree, 0);
    parent_pid = getpid();
    printf("Starting server on process %d\n", parent_pid);
-   start_server(http_tree, port);
+   start_server(port);
 
    return 0;
 }

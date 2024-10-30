@@ -1,5 +1,9 @@
 CC = gcc
-CFLAGS = -Wall
+CFLAGS = -Wall -Wextra -std=c11 \
+          -Wformat=2 -Wno-unused-parameter -Wshadow -Wno-discarded-qualifiers \
+          -Wwrite-strings -Wstrict-prototypes -Wold-style-definition \
+          -Wredundant-decls -Wnested-externs -Wmissing-include-dirs \
+			 -Wjump-misses-init -Wlogical-op -O3 -D_POSIX_C_SOURCE=200112L
 
 OBJECTS = linked_list.o \
           tree.o \

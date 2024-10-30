@@ -1,6 +1,6 @@
 #include "http_tree.h"
 
-char *print_endpoint_type(endpoint_type_t type)
+const char *print_endpoint_type(endpoint_type_t type)
 {
    switch (type)
    {
@@ -19,7 +19,7 @@ char *print_endpoint_type(endpoint_type_t type)
    }
 }
 
-char *print_content_type(content_type_t content_type)
+const char *print_content_type(content_type_t content_type)
 {
    switch (content_type)
    {
@@ -38,6 +38,10 @@ char *print_content_type(content_type_t content_type)
 
 endpoint_t *get_endpoint(tree_t *tree, char *path)
 {
+   if (*path == '/') /* delete the / at the beginning */
+   {
+      path++;
+   }
    endpoint_t *tree_endpoint = (endpoint_t *)tree->element;
    if (strlen(path) == 0 || strcmp("/", path) == 0)
    {
@@ -57,6 +61,10 @@ endpoint_t *get_endpoint(tree_t *tree, char *path)
    {
       child = children->element;
       endpoint_t *child_endpoint = (endpoint_t *)child->element;
+      if (strncmp(child_endpoint->path, path, strlen(child_endpoint->path)) == 0 && child_endpoint->type == ET_DIRECTORY)
+      {
+         return child_endpoint;
+      }
       if (strcmp(child_endpoint->path, first_part) == 0)
       {
          if (*rest == '\0')
@@ -70,9 +78,13 @@ endpoint_t *get_endpoint(tree_t *tree, char *path)
    return NULL;
 }
 
-void add_endpoint(tree_t *tree, char *path, void *resource, endpoint_type_t type, content_type_t content_type)
+void add_endpoint(tree_t *tree, const char *path, const void *resource, endpoint_type_t type, content_type_t content_type)
 {
    endpoint_t *tree_endpoint = (endpoint_t *)tree->element;
+   if (*path == '/') /* delete the / at the beginning */
+   {
+      return add_endpoint(tree, &path[1], resource, type, content_type);
+   }
    if ((strlen(path) == 0 || strcmp("/", path) == 0) && (strcmp("/", tree_endpoint->path) == 0 || strcmp("", tree_endpoint->path) == 0)) // for initialization (if overriding / path)
    {
       tree_endpoint->resource = resource;
@@ -146,10 +158,7 @@ void print_http_tree(tree_t *tree, int depth)
    {
       printf(" ");
    }
-   if (tree_endpoint->type != ET_FUNC)
-   {
-      printf("/%s %s %s %s\n", tree_endpoint->path, print_endpoint_type(tree_endpoint->type), (char *)tree_endpoint->resource, print_content_type(tree_endpoint->content_type));
-   }
+   printf("/%s %s %s\n", tree_endpoint->path, print_endpoint_type(tree_endpoint->type), print_content_type(tree_endpoint->content_type));
    ll_node_t *children = tree->children;
    while (children != NULL)
    {
@@ -180,14 +189,14 @@ void free_http_tree(tree_t *tree)
 tree_t *init_http_tree(void *resource, endpoint_type_t type, content_type_t content_type)
 {
    endpoint_t *endpoint = malloc(sizeof(endpoint_t));
-   endpoint->path = "/";
+   endpoint->path = "";
    endpoint->type = type;
    endpoint->resource = resource;
    endpoint->content_type = content_type;
    return init_tree((void *)endpoint);
 }
 
-tree_t *build_http_tree(endpoint_t endpoints[], int n)
+tree_t *build_http_tree(const endpoint_t endpoints[], int n)
 {
    tree_t *tree = init_http_tree(NULL, ET_PATH, NULL_CONTENT);
    for (int i = 0; i < n; i++)

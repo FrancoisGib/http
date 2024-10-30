@@ -1,6 +1,8 @@
 FROM scratch
 
-COPY http /
-COPY src ./
+WORKDIR /app
+
+COPY http ./
+COPY src ./src
 
 ENTRYPOINT ["./http", "8080"]

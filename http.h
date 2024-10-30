@@ -26,4 +26,7 @@ typedef struct
    char *value;
 } header_t;
 
-typedef char *(*resource_function)(void *);
+typedef const char *(*resource_function)(void *);
+
+void sigint_handler(int code);
+void accept_connection(void);
