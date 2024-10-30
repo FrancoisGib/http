@@ -30,6 +30,20 @@ const char *test_function(void *content)
    return "<p>test</p>";
 }
 
+int read_file(char buffer[1024], char *file_path)
+{
+   if (access(file_path, R_OK) == 0)
+   {
+      FILE *file = fopen(file_path, "r");
+      return (int)fread(buffer, 1, 1024, file);
+      fclose(file);
+   }
+   else
+   {
+      return -1;
+   }
+}
+
 void construct_response(int client_socket, char *method, char *path, char *content, char *content_type)
 {
    endpoint_t *endpoint = get_endpoint(http_tree, path);
@@ -45,19 +59,7 @@ void construct_response(int client_socket, char *method, char *path, char *conte
    memset(buffer, 0, 1024);
    if (endpoint->type == ET_FILE)
    {
-      printf("resource %s\n", (char *)endpoint->resource);
-      if (access(endpoint->resource, R_OK) == 0)
-      {
-         FILE *file = fopen(endpoint->resource, "r");
-         content_length = (int)fread(buffer, 1, 1024, file);
-         fclose(file);
-      }
-      else
-      {
-         char message[] = "Error";
-         strcpy(buffer, message);
-         content_length = strlen(message);
-      }
+      content_length = read_file(buffer, endpoint->resource);
    }
    else if (endpoint->type == ET_TEXT)
    {
@@ -76,26 +78,27 @@ void construct_response(int client_socket, char *method, char *path, char *conte
       while (strncmp(path, endpoint->path, strlen(endpoint->path)) != 0)
       {
          path++;
-         printf("path %s\n", path);
       }
       path += strlen(endpoint->path) + 1; /* pass the \0 made by get_endpoint */
       char file_path[strlen(path) + strlen((char *)endpoint->resource) + 1];
       strcpy(file_path, endpoint->resource);
       strcat(file_path, path);
-      printf("path %s\n", file_path);
-      if (access(file_path, R_OK) == 0)
-      {
-         FILE *file = fopen(file_path, "r");
-         content_length = (int)fread(buffer, 1, 1024, file);
-         fclose(file);
-      }
-      else
-      {
-         char message[] = "Error";
-         strcpy(buffer, message);
-         content_length = strlen(message);
-      }
+      content_length = read_file(buffer, file_path);
    }
+
+   char content_type_str[64] = "Content-Type: ";
+   if (content_length == -1)
+   {
+      char message[] = "Error";
+      strcpy(buffer, message);
+      content_length = strlen(message);
+      strcat(content_type_str, print_content_type(TEXT));
+   }
+   else
+   {
+      strcat(content_type_str, print_content_type(endpoint->content_type));
+   }
+   strcat(content_type_str, "\r\n\r\n");
 
    char content_length_buffer[5];
    sprintf(content_length_buffer, "%d", content_length);
@@ -103,10 +106,6 @@ void construct_response(int client_socket, char *method, char *path, char *conte
    char content_length_str[32] = "Content-Length: ";
    strcat(content_length_str, content_length_buffer);
    strcat(content_length_str, "\r\n");
-
-   char content_type_str[64] = "Content-Type: ";
-   strcat(content_type_str, print_content_type(endpoint->content_type));
-   strcat(content_type_str, "\r\n\r\n");
 
    strcat(response, content_length_str);
    strcat(response, content_type_str);
