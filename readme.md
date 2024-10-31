@@ -23,7 +23,7 @@ int main(int argc, char **argv)
        {"/hostname", hostname, ET_TEXT, TEXT},
        {"/", "src/index.html", ET_FILE, HTML},
        {"/test", test_function, ET_FUNC, HTML},
-       {"/public", "src/public/", ET_DIRECTORY, HTML}};
+       {"/public", "src/public/", ET_DIRECTORY, NULL_CONTENT}};
 
    http_tree = build_http_tree(endpoints, sizeof(endpoints) / sizeof(endpoint_t));
    print_http_tree(http_tree, 0);
@@ -59,3 +59,9 @@ In the main example, the tree structure is:
     └── /test serving "<p>test</p>" (returned by a function taking the content of the request, so it can be set dynamically)
     └── /public serving src/public folder
 ```
+
+## Parsing
+
+The parsing of the requests will be improved in the future for security, and I will implement request and response split into chunks to deal with larger requests efficiently.
+
+*nb: it is not a project made to be used in real applications (for now anyway), and i'm doing it for fun*
