@@ -3,6 +3,7 @@
 int sock = -1;
 int nb_processes = NB_PROCESSES;
 tree_t *http_tree;
+response_t error_response;
 pid_t parent_pid;
 
 void sigint_handler(int code)
@@ -24,23 +25,24 @@ void sigint_handler(int code)
    exit(0);
 }
 
-const char *test_function(char *content)
+char *test_function(char *content)
 {
-   return "<p>test</p>";
+   char *str = malloc(strlen("<p>test</p>") + 1);
+   strcpy(str, "<p>test</p>");
+   return str;
 }
 
 int read_file(char buffer[1024], char *file_path)
 {
-   if (access(file_path, R_OK) == 0)
+   stat_t st;
+   stat(file_path, &st);
+   if (!S_ISDIR(st.st_mode) && access(file_path, R_OK) == 0)
    {
       FILE *file = fopen(file_path, "r");
       return (int)fread(buffer, 1, 1024, file);
       fclose(file);
    }
-   else
-   {
-      return -1;
-   }
+   return -1;
 }
 
 void construct_response(int client_socket, char *method, char *path, char *content, char *content_type)
@@ -51,36 +53,36 @@ void construct_response(int client_socket, char *method, char *path, char *conte
       printf("No endpoint for path: %s \n", path);
       return;
    }
-   char response[2048] = "HTTP/1.1 200 OK\r\n";
 
    int content_length = 0;
    char buffer[1024];
    memset(buffer, 0, 1024);
-   if (endpoint->type == ET_FILE)
+   if (endpoint->response.type == ET_FILE)
    {
-      content_length = read_file(buffer, endpoint->resource.content);
+      content_length = read_file(buffer, endpoint->response.resource.content);
    }
-   else if (endpoint->type == ET_TEXT)
+   else if (endpoint->response.type == ET_TEXT)
    {
-      strcpy(buffer, endpoint->resource.content);
-      content_length = strlen(endpoint->resource.content);
+      strcpy(buffer, endpoint->response.resource.content);
+      content_length = strlen(endpoint->response.resource.content);
    }
-   else if (endpoint->type == ET_FUNC)
+   else if (endpoint->response.type == ET_FUNC)
    {
-      resource_function function = endpoint->resource.function;
-      const char *response_content = function(content);
+      resource_function function = endpoint->response.resource.function;
+      char *response_content = function(content);
       content_length = (int)strlen(response_content);
       strcpy(buffer, response_content);
+      free(response_content);
    }
-   else if (endpoint->type == ET_DIRECTORY)
+   else if (endpoint->response.type == ET_DIRECTORY)
    {
       while (strncmp(path, endpoint->path, strlen(endpoint->path)) != 0)
       {
          path++;
       }
       path += strlen(endpoint->path) + 1; /* pass the \0 made by get_endpoint */
-      char file_path[strlen(path) + strlen(endpoint->resource.content) + 1];
-      strcpy(file_path, endpoint->resource.content);
+      char file_path[strlen(path) + strlen(endpoint->response.resource.content) + 1];
+      strcpy(file_path, endpoint->response.resource.content);
       strcat(file_path, path);
       content_length = read_file(buffer, file_path);
    }
@@ -91,17 +93,17 @@ void construct_response(int client_socket, char *method, char *path, char *conte
       char message[] = "Error";
       strcpy(buffer, message);
       content_length = strlen(message);
-      strcat(content_type_str, print_content_type(TEXT));
+      strcat(content_type_str, get_content_type(error_response.content_type));
    }
    else
    {
-      if (endpoint->content_type == NULL_CONTENT)
+      if (endpoint->response.content_type == NULL_CONTENT)
       {
          strcat(content_type_str, get_content_type_with_file_extension(path));
       }
       else
       {
-         strcat(content_type_str, print_content_type(endpoint->content_type));
+         strcat(content_type_str, get_content_type(endpoint->response.content_type));
       }
    }
    strcat(content_type_str, "\r\n\r\n");
@@ -112,6 +114,13 @@ void construct_response(int client_socket, char *method, char *path, char *conte
    char content_length_str[32] = "Content-Length: ";
    strcat(content_length_str, content_length_buffer);
    strcat(content_length_str, "\r\n");
+
+   char response[MAX_RESPONSE_SIZE] = "HTTP/1.1 ";
+
+   char status_code[6];
+   sprintf(status_code, "%d\r\n", endpoint->response.status);
+   printf("status %d\n", endpoint->response.status);
+   strcat(response, status_code);
 
    strcat(response, content_length_str);
    strcat(response, content_type_str);
@@ -154,6 +163,9 @@ void parse_http_request(char *request, int client_socket)
    printf("USER AGENT: %s\n", user_agent);
    printf("ACCEPT: %s\n", accept);
 
+   char buffer[MAX_REQUEST_SIZE];
+   int buffer_written_size = sprintf(buffer, "Method: %s\nPath: %s\nHost: %s\nUser Agent: %s\nAccept: %s\nHeaders: [\n", method, path, host, user_agent, accept);
+
    ll_node_t *headers = NULL;
    char *header = rest;
    while (*header != '\0')
@@ -172,6 +184,7 @@ void parse_http_request(char *request, int client_socket)
          new_header->name = header_name;
          new_header->value = header_value;
          headers = insert_in_head(headers, (void *)new_header);
+         buffer_written_size += sprintf(&buffer[buffer_written_size], "\t%s: %s\n", header_name, header_value);
       }
    }
 
@@ -194,20 +207,23 @@ void parse_http_request(char *request, int client_socket)
       current_header = current_header->next;
    }
    printf("]\n");
+   strcat(buffer, "]\n\n");
    free_linked_list(headers, (ll_map_function_t)free_with_arg);
 
+   char *content_ptr = NULL;
    if (content_length > 0)
    {
       char content[content_length + 1];
       content[content_length] = '\0';
+      content_ptr = content;
       memcpy(content, rest, content_length);
       printf("Content: %s\n", content);
-      construct_response(client_socket, method, path, content, content_type);
+      strcat(buffer, content);
    }
-   else
-   {
-      construct_response(client_socket, method, path, NULL, content_type);
-   }
+   strcat(buffer, "\n\n");
+   write_log(buffer);
+
+   construct_response(client_socket, method, path, content_ptr, content_type);
 }
 
 void accept_connection(void)
@@ -229,7 +245,6 @@ void accept_connection(void)
       int size = read(client_socket, buffer, MAX_REQUEST_SIZE);
       if (size > 0)
       {
-         write_log(buffer);
          parse_http_request(buffer, client_socket);
          memset(buffer, 0, size);
       }
@@ -303,7 +318,7 @@ int main(int argc, char **argv)
    else
    {
       printf("Please enter a port number");
-      exit(-1);
+      return 0;
    }
    if (argc > 2)
    {
@@ -314,10 +329,12 @@ int main(int argc, char **argv)
    gethostname(hostname, _SC_HOST_NAME_MAX + 1);
 
    const endpoint_t endpoints[] = {
-       {"/hostname", {.content = hostname}, ET_TEXT, TEXT},
-       {"/", {.content = "src/index.html"}, ET_FILE, HTML},
-       {"/test", {.function = test_function}, ET_FUNC, HTML},
-       {"/public", {.content = "src/public/"}, ET_DIRECTORY, NULL_CONTENT}};
+       {"/hostname", {{.content = hostname}, ET_TEXT, TEXT, HTTP_STATUS_OK}},
+       {"/", {{.content = "src/index.html"}, ET_FILE, HTML, HTTP_STATUS_OK}},
+       {"/test", {{.function = test_function}, ET_FUNC, HTML, HTTP_STATUS_CREATED}},
+       {"/public", {{.content = "src/public/"}, ET_DIRECTORY, NULL_CONTENT, HTTP_STATUS_OK}}};
+
+   error_response = (response_t){{.content = "Error"}, ET_TEXT, TEXT, HTTP_STATUS_OK};
 
    http_tree = build_http_tree(endpoints, sizeof(endpoints) / sizeof(endpoint_t));
    print_http_tree(http_tree, 0);

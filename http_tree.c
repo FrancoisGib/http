@@ -1,6 +1,6 @@
 #include "http_tree.h"
 
-const char *print_endpoint_type(endpoint_type_t type)
+const char *get_endpoint_type(endpoint_type_e type)
 {
    switch (type)
    {
@@ -21,7 +21,7 @@ const char *print_endpoint_type(endpoint_type_t type)
 
 const char *get_content_type_with_file_extension(char *path)
 {
-   content_type_t content_type = NULL_CONTENT;
+   content_type_e content_type = NULL_CONTENT;
    char *extension = path;
    strtok_r(path, ".", &extension);
    printf("extension %s\n", extension);
@@ -44,10 +44,10 @@ const char *get_content_type_with_file_extension(char *path)
          content_type = TEXT;
       }
    }
-   return print_content_type(content_type);
+   return get_content_type(content_type);
 }
 
-const char *print_content_type(content_type_t content_type)
+const char *get_content_type(content_type_e content_type)
 {
    switch (content_type)
    {
@@ -91,7 +91,7 @@ endpoint_t *get_endpoint(tree_t *tree, char *path)
    {
       child = children->element;
       endpoint_t *child_endpoint = (endpoint_t *)child->element;
-      if (strncmp(child_endpoint->path, path, strlen(child_endpoint->path)) == 0 && child_endpoint->type == ET_DIRECTORY)
+      if (strncmp(child_endpoint->path, path, strlen(child_endpoint->path)) == 0 && child_endpoint->response.type == ET_DIRECTORY)
       {
          return child_endpoint;
       }
@@ -108,19 +108,17 @@ endpoint_t *get_endpoint(tree_t *tree, char *path)
    return NULL;
 }
 
-void add_endpoint(tree_t *tree, const char *path, const resource_t resource, endpoint_type_t type, content_type_t content_type)
+void add_endpoint(tree_t *tree, const char *path, response_t response)
 {
    endpoint_t *tree_endpoint = (endpoint_t *)tree->element;
    if (*path == '/') /* delete the / at the beginning */
    {
-      add_endpoint(tree, &path[1], resource, type, content_type);
+      add_endpoint(tree, &path[1], response);
       return;
    }
    if ((strlen(path) == 0 || strcmp("/", path) == 0) && (strcmp("/", tree_endpoint->path) == 0 || strcmp("", tree_endpoint->path) == 0)) // for initialization (if overriding / path)
    {
-      tree_endpoint->resource = resource;
-      tree_endpoint->type = type;
-      tree_endpoint->content_type = content_type;
+      tree_endpoint->response = response;
       return;
    }
 
@@ -129,9 +127,7 @@ void add_endpoint(tree_t *tree, const char *path, const resource_t resource, end
 
    if (strcmp(first_part, tree_endpoint->path) == 0 && *rest == '\0')
    {
-      tree_endpoint->content_type = content_type;
-      tree_endpoint->type = type;
-      tree_endpoint->resource = resource;
+      tree_endpoint->response = response;
    }
 
    ll_node_t *children = tree->children;
@@ -157,7 +153,7 @@ void add_endpoint(tree_t *tree, const char *path, const resource_t resource, end
       {
          if (*rest != '\0')
          {
-            add_endpoint(child, rest, resource, type, content_type);
+            add_endpoint(child, rest, response);
          }
       }
       else
@@ -167,16 +163,12 @@ void add_endpoint(tree_t *tree, const char *path, const resource_t resource, end
          child = add_child(tree, (void *)endpoint);
          if (*rest != '\0')
          {
-            endpoint->type = ET_PATH;
-            endpoint->resource.content = "";
-            endpoint->content_type = NULL_CONTENT;
-            add_endpoint(child, rest, resource, type, content_type);
+            endpoint->response = (response_t){.resource.content = "", .type = ET_PATH, .status = HTTP_STATUS_NOT_FOUND, .content_type = NULL_CONTENT};
+            add_endpoint(child, rest, response);
          }
          else
          {
-            endpoint->type = type;
-            endpoint->content_type = content_type;
-            endpoint->resource = resource;
+            endpoint->response = response;
          }
       }
    }
@@ -189,7 +181,7 @@ void print_http_tree(tree_t *tree, int depth)
    {
       printf(" ");
    }
-   printf("/%s %s %s\n", tree_endpoint->path, print_endpoint_type(tree_endpoint->type), print_content_type(tree_endpoint->content_type));
+   printf("/%s %s %s %s\n", tree_endpoint->path, get_endpoint_type(tree_endpoint->response.type), get_content_type(tree_endpoint->response.content_type), tree_endpoint->response.type == ET_FUNC ? "" : tree_endpoint->response.resource.content);
    ll_node_t *children = tree->children;
    while (children != NULL)
    {
@@ -217,24 +209,21 @@ void free_http_tree(tree_t *tree)
    }
 }
 
-tree_t *init_http_tree(resource_t resource, endpoint_type_t type, content_type_t content_type)
+tree_t *init_http_tree(void)
 {
    endpoint_t *endpoint = malloc(sizeof(endpoint_t));
    endpoint->path = "";
-   endpoint->type = type;
-   endpoint->resource = resource;
-   endpoint->content_type = content_type;
+   endpoint->response = (response_t){.resource.content = "", .type = ET_PATH, .status = HTTP_STATUS_NOT_FOUND, .content_type = NULL_CONTENT};
    return init_tree((void *)endpoint);
 }
 
 tree_t *build_http_tree(const endpoint_t endpoints[], int n)
 {
-   resource_t fake_resource;
-   tree_t *tree = init_http_tree(fake_resource, ET_PATH, NULL_CONTENT);
+   tree_t *tree = init_http_tree();
    for (int i = 0; i < n; i++)
    {
       endpoint_t endpoint = endpoints[i];
-      add_endpoint(tree, endpoint.path, endpoint.resource, endpoint.type, endpoint.content_type);
+      add_endpoint(tree, endpoint.path, endpoint.response);
    }
    return tree;
 }

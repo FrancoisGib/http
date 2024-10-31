@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <fcntl.h>
+#include <sys/types.h>
 #include <sys/wait.h>
 #include "http_tree.h"
 #include "logger.h"
@@ -28,4 +29,4 @@ typedef struct
    char *value;
 } header_t;
 
-typedef const char *(*resource_function)(char *);
+typedef char *(*resource_function)(char *);

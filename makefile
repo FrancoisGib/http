@@ -8,17 +8,25 @@ CFLAGS = -Wall -Wextra -std=c11 -Wpedantic \
 OBJECTS = linked_list.o \
           tree.o \
           http_tree.o \
-			 logger.o
+			 logger.o \
+			 http.o
 
-http: http.o $(OBJECTS)
-	$(CC) $(CFLAGS) -o http http.o $(OBJECTS)
+DIR = objects
+
+OBJECTS_DIR = $(addprefix $(DIR)/, $(OBJECTS))
+
+dir:
+	mkdir -p objects
 
 %.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $(DIR)/$@
+
+http: dir $(OBJECTS)
+	$(CC) $(CFLAGS) -o http $(OBJECTS_DIR)
 
 docker-image: http.o $(OBJECTS)
-	$(CC) --static $(CFLAGS) -o http http.o $(OBJECTS)
+	$(CC) --static $(CFLAGS) -o http $(OBJECTS_DIR)
 	docker build -t http-server .
 
 clean:
-	rm -rf *.o http logs
+	rm -rf *.o http logs objects
