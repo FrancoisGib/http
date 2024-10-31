@@ -24,7 +24,7 @@ void sigint_handler(int code)
    exit(0);
 }
 
-const char *test_function(void *content)
+const char *test_function(char *content)
 {
    return "<p>test</p>";
 }
@@ -58,17 +58,17 @@ void construct_response(int client_socket, char *method, char *path, char *conte
    memset(buffer, 0, 1024);
    if (endpoint->type == ET_FILE)
    {
-      content_length = read_file(buffer, endpoint->resource);
+      content_length = read_file(buffer, endpoint->resource.content);
    }
    else if (endpoint->type == ET_TEXT)
    {
-      strcpy(buffer, endpoint->resource);
-      content_length = strlen(endpoint->resource);
+      strcpy(buffer, endpoint->resource.content);
+      content_length = strlen(endpoint->resource.content);
    }
    else if (endpoint->type == ET_FUNC)
    {
-      resource_function function = (resource_function)endpoint->resource;
-      const char *response_content = function((void *)content);
+      resource_function function = endpoint->resource.function;
+      const char *response_content = function(content);
       content_length = (int)strlen(response_content);
       strcpy(buffer, response_content);
    }
@@ -79,8 +79,8 @@ void construct_response(int client_socket, char *method, char *path, char *conte
          path++;
       }
       path += strlen(endpoint->path) + 1; /* pass the \0 made by get_endpoint */
-      char file_path[strlen(path) + strlen((char *)endpoint->resource) + 1];
-      strcpy(file_path, endpoint->resource);
+      char file_path[strlen(path) + strlen(endpoint->resource.content) + 1];
+      strcpy(file_path, endpoint->resource.content);
       strcat(file_path, path);
       content_length = read_file(buffer, file_path);
    }
@@ -314,10 +314,10 @@ int main(int argc, char **argv)
    gethostname(hostname, _SC_HOST_NAME_MAX + 1);
 
    const endpoint_t endpoints[] = {
-       {"/hostname", hostname, ET_TEXT, TEXT},
-       {"/", "src/index.html", ET_FILE, HTML},
-       {"/test", test_function, ET_FUNC, HTML},
-       {"/public", "src/public/", ET_DIRECTORY, NULL_CONTENT}};
+       {"/hostname", {.content = hostname}, ET_TEXT, TEXT},
+       {"/", {.content = "src/index.html"}, ET_FILE, HTML},
+       {"/test", {.function = test_function}, ET_FUNC, HTML},
+       {"/public", {.content = "src/public/"}, ET_DIRECTORY, NULL_CONTENT}};
 
    http_tree = build_http_tree(endpoints, sizeof(endpoints) / sizeof(endpoint_t));
    print_http_tree(http_tree, 0);

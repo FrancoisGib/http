@@ -108,12 +108,13 @@ endpoint_t *get_endpoint(tree_t *tree, char *path)
    return NULL;
 }
 
-void add_endpoint(tree_t *tree, const char *path, const void *resource, endpoint_type_t type, content_type_t content_type)
+void add_endpoint(tree_t *tree, const char *path, const resource_t resource, endpoint_type_t type, content_type_t content_type)
 {
    endpoint_t *tree_endpoint = (endpoint_t *)tree->element;
    if (*path == '/') /* delete the / at the beginning */
    {
-      return add_endpoint(tree, &path[1], resource, type, content_type);
+      add_endpoint(tree, &path[1], resource, type, content_type);
+      return;
    }
    if ((strlen(path) == 0 || strcmp("/", path) == 0) && (strcmp("/", tree_endpoint->path) == 0 || strcmp("", tree_endpoint->path) == 0)) // for initialization (if overriding / path)
    {
@@ -167,7 +168,7 @@ void add_endpoint(tree_t *tree, const char *path, const void *resource, endpoint
          if (*rest != '\0')
          {
             endpoint->type = ET_PATH;
-            endpoint->resource = "";
+            endpoint->resource.content = "";
             endpoint->content_type = NULL_CONTENT;
             add_endpoint(child, rest, resource, type, content_type);
          }
@@ -216,7 +217,7 @@ void free_http_tree(tree_t *tree)
    }
 }
 
-tree_t *init_http_tree(void *resource, endpoint_type_t type, content_type_t content_type)
+tree_t *init_http_tree(resource_t resource, endpoint_type_t type, content_type_t content_type)
 {
    endpoint_t *endpoint = malloc(sizeof(endpoint_t));
    endpoint->path = "";
@@ -228,7 +229,8 @@ tree_t *init_http_tree(void *resource, endpoint_type_t type, content_type_t cont
 
 tree_t *build_http_tree(const endpoint_t endpoints[], int n)
 {
-   tree_t *tree = init_http_tree(NULL, ET_PATH, NULL_CONTENT);
+   resource_t fake_resource;
+   tree_t *tree = init_http_tree(fake_resource, ET_PATH, NULL_CONTENT);
    for (int i = 0; i < n; i++)
    {
       endpoint_t endpoint = endpoints[i];

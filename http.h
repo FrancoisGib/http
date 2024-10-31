@@ -28,4 +28,4 @@ typedef struct
    char *value;
 } header_t;
 
-typedef const char *(*resource_function)(void *);
+typedef const char *(*resource_function)(char *);

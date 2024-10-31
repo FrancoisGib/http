@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c11 \
+CFLAGS = -Wall -Wextra -std=c11 -Wpedantic \
           -Wformat=2 -Wno-unused-parameter -Wshadow -Wno-discarded-qualifiers \
           -Wwrite-strings -Wstrict-prototypes -Wold-style-definition \
           -Wredundant-decls -Wnested-externs -Wmissing-include-dirs \
@@ -21,4 +21,4 @@ docker-image: http.o $(OBJECTS)
 	docker build -t http-server .
 
 clean:
-	rm -f *.o http
+	rm -rf *.o http logs

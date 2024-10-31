@@ -1,11 +1,9 @@
 #include "logger.h"
 
-tm_t tm;
-
 int write_log(char *message)
 {
    time_t t = time(NULL);
-   tm = *localtime(&t);
+   tm_t tm = *localtime(&t);
    stat_t st;
    if (stat("logs", &st) == -1)
    {
