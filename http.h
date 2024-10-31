@@ -5,7 +5,9 @@
 #include <unistd.h>
 #include <signal.h>
 #include <fcntl.h>
+#include <sys/wait.h>
 #include "http_tree.h"
+#include "logger.h"
 
 typedef struct sockaddr_in SOCKADDR_IN;
 

@@ -1,5 +1,4 @@
 #include "http.h"
-#include <sys/wait.h>
 
 int sock = -1;
 int nb_processes = NB_PROCESSES;
@@ -96,7 +95,14 @@ void construct_response(int client_socket, char *method, char *path, char *conte
    }
    else
    {
-      strcat(content_type_str, print_content_type(endpoint->content_type));
+      if (endpoint->content_type == NULL_CONTENT)
+      {
+         strcat(content_type_str, get_content_type_with_file_extension(path));
+      }
+      else
+      {
+         strcat(content_type_str, print_content_type(endpoint->content_type));
+      }
    }
    strcat(content_type_str, "\r\n\r\n");
 
@@ -118,6 +124,13 @@ void construct_response(int client_socket, char *method, char *path, char *conte
    if (write_size < (int)strlen(response))
    {
       printf("Error while sending response\n");
+      write_log("Error while sending response\n");
+   }
+   else
+   {
+      write_log("---\n\n");
+      write_log(response);
+      write_log("\n\n-----------------\n\n");
    }
 }
 
@@ -216,6 +229,7 @@ void accept_connection(void)
       int size = read(client_socket, buffer, MAX_REQUEST_SIZE);
       if (size > 0)
       {
+         write_log(buffer);
          parse_http_request(buffer, client_socket);
          memset(buffer, 0, size);
       }
@@ -303,7 +317,7 @@ int main(int argc, char **argv)
        {"/hostname", hostname, ET_TEXT, TEXT},
        {"/", "src/index.html", ET_FILE, HTML},
        {"/test", test_function, ET_FUNC, HTML},
-       {"/public", "src/public/", ET_DIRECTORY, HTML}};
+       {"/public", "src/public/", ET_DIRECTORY, NULL_CONTENT}};
 
    http_tree = build_http_tree(endpoints, sizeof(endpoints) / sizeof(endpoint_t));
    print_http_tree(http_tree, 0);

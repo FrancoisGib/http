@@ -12,6 +12,7 @@ typedef enum
 typedef enum
 {
    JSON,
+   JAVASCRIPT,
    TEXT,
    HTML,
    NULL_CONTENT
@@ -27,6 +28,7 @@ typedef struct
 
 const char *print_endpoint_type(endpoint_type_t type);
 const char *print_content_type(content_type_t content_type);
+const char *get_content_type_with_file_extension(char *path);
 endpoint_t *get_endpoint(tree_t *tree, char *path);
 void add_endpoint(tree_t *tree, const char *path, const void *resource, endpoint_type_t type, content_type_t content_type);
 void print_http_tree(tree_t *tree, int depth);

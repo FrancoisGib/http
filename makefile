@@ -7,7 +7,8 @@ CFLAGS = -Wall -Wextra -std=c11 \
 
 OBJECTS = linked_list.o \
           tree.o \
-          http_tree.o
+          http_tree.o \
+			 logger.o
 
 http: http.o $(OBJECTS)
 	$(CC) $(CFLAGS) -o http http.o $(OBJECTS)

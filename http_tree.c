@@ -19,12 +19,42 @@ const char *print_endpoint_type(endpoint_type_t type)
    }
 }
 
+const char *get_content_type_with_file_extension(char *path)
+{
+   content_type_t content_type = NULL_CONTENT;
+   char *extension = path;
+   strtok_r(path, ".", &extension);
+   printf("extension %s\n", extension);
+   if (extension != NULL)
+   {
+      if (strcmp(extension, "js") == 0)
+      {
+         content_type = JAVASCRIPT;
+      }
+      else if (strcmp(extension, "json") == 0)
+      {
+         content_type = JSON;
+      }
+      else if (strcmp(extension, "html") == 0)
+      {
+         content_type = HTML;
+      }
+      else if (strcmp(extension, "txt") == 0)
+      {
+         content_type = TEXT;
+      }
+   }
+   return print_content_type(content_type);
+}
+
 const char *print_content_type(content_type_t content_type)
 {
    switch (content_type)
    {
    case JSON:
       return "application/json";
+   case JAVASCRIPT:
+      return "text/javascript";
    case HTML:
       return "text/html";
    case TEXT:
