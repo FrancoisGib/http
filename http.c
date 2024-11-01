@@ -308,9 +308,10 @@ void accept_connection(void)
          }
          memset(buffer, 0, size);
       }
-      pthread_t log_thread;
-      pthread_create(&log_thread, NULL, http_request_write_log_wrapper, (void *)&http_request);
-      pthread_detach(log_thread);
+      http_request_write_log(&http_request);
+      // pthread_t log_thread;
+      // pthread_create(&log_thread, NULL, http_request_write_log_wrapper, (void *)&http_request);
+      // pthread_detach(log_thread);
       construct_response(client_socket, &http_request);
       close(client_socket);
    }
