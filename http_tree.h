@@ -1,3 +1,6 @@
+#ifndef HTTP_TREE_H
+#define HTTP_TREE_H
+
 #include "tree.h"
 
 typedef enum
@@ -58,3 +61,5 @@ void print_http_tree(tree_t *tree, int depth);
 void free_http_tree(tree_t *tree);
 tree_t *init_http_tree(void);
 tree_t *build_http_tree(const endpoint_t endpoints[], int n);
+
+#endif // HTTP_TREE_H

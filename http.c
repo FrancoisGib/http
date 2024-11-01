@@ -25,11 +25,14 @@ void sigint_handler(int code)
    exit(0);
 }
 
-char *test_function(char *content)
+char *strdup(const char *str)
 {
-   char *str = malloc(strlen("<p>test</p>") + 1);
-   strcpy(str, "<p>test</p>");
-   return str;
+   char *dup = malloc(strlen(str) + 1);
+   if (dup != NULL)
+   {
+      strcpy(dup, str);
+   }
+   return dup;
 }
 
 int read_file(char buffer[1024], char *file_path)
@@ -45,12 +48,12 @@ int read_file(char buffer[1024], char *file_path)
    return -1;
 }
 
-void construct_response(int client_socket, char *method, char *path, char *content, char *content_type)
+void construct_response(int client_socket, http_request_t *http_request)
 {
-   endpoint_t *endpoint = get_endpoint(http_tree, path);
+   endpoint_t *endpoint = get_endpoint(http_tree, http_request->path);
    if (endpoint == NULL)
    {
-      printf("No endpoint for path: %s \n", path);
+      printf("No endpoint for path: %s \n", http_request->path);
       return;
    }
 
@@ -69,21 +72,21 @@ void construct_response(int client_socket, char *method, char *path, char *conte
    else if (endpoint->response.type == ET_FUNC)
    {
       resource_function function = endpoint->response.resource.function;
-      char *response_content = function(content);
+      char *response_content = function(http_request->body);
       content_length = (int)strlen(response_content);
       strcpy(buffer, response_content);
       free(response_content);
    }
    else if (endpoint->response.type == ET_DIRECTORY)
    {
-      while (strncmp(path, endpoint->path, strlen(endpoint->path)) != 0)
+      while (strncmp(http_request->path, endpoint->path, strlen(endpoint->path)) != 0)
       {
-         path++;
+         http_request->path++;
       }
-      path += strlen(endpoint->path) + 1; /* pass the \0 made by get_endpoint */
-      char file_path[strlen(path) + strlen(endpoint->response.resource.content) + 1];
+      http_request->path += strlen(endpoint->path) + 1; /* pass the \0 made by get_endpoint */
+      char file_path[strlen(http_request->path) + strlen(endpoint->response.resource.content) + 1];
       strcpy(file_path, endpoint->response.resource.content);
-      strcat(file_path, path);
+      strcat(file_path, http_request->path);
       content_length = read_file(buffer, file_path);
    }
 
@@ -99,7 +102,7 @@ void construct_response(int client_socket, char *method, char *path, char *conte
    {
       if (endpoint->response.content_type == NULL_CONTENT)
       {
-         strcat(content_type_str, get_content_type_with_file_extension(path));
+         strcat(content_type_str, get_content_type_with_file_extension(http_request->path));
       }
       else
       {
@@ -119,7 +122,6 @@ void construct_response(int client_socket, char *method, char *path, char *conte
 
    char status_code[6];
    sprintf(status_code, "%d\r\n", endpoint->response.status);
-   printf("status %d\n", endpoint->response.status);
    strcat(response, status_code);
 
    strcat(response, content_length_str);
@@ -135,100 +137,124 @@ void construct_response(int client_socket, char *method, char *path, char *conte
       printf("Error while sending response\n");
       write_log("Error while sending response\n");
    }
-   else
-   {
-      write_log("---\n\n");
-      write_log(response);
-      write_log("\n\n-----------------\n\n");
-   }
 }
 
-void parse_http_request(char *request, int client_socket)
+void send_error_response(int client_socket)
 {
-   char *rest = request;
-   char *method = strtok_r(rest, " ", &rest);
-   char *path = strtok_r(rest, " ", &rest);
-   char *http_version = strtok_r(rest, "\n", &rest);
-   strtok_r(rest, " ", &rest);
-   char *host = strtok_r(rest, "\n", &rest);
-   strtok_r(rest, " ", &rest);
-   char *user_agent = strtok_r(rest, "\n", &rest);
-   strtok_r(rest, " ", &rest);
-   char *accept = strtok_r(rest, "\n", &rest);
+   printf("Error response sent\n");
+}
 
-   printf("METHOD: %s\n", method);
-   printf("PATH: %s\n", path);
-   printf("HTTP VERSION: %s\n", http_version);
-   printf("HOST: %s\n", host);
-   printf("USER AGENT: %s\n", user_agent);
-   printf("ACCEPT: %s\n", accept);
-
-   char buffer[MAX_REQUEST_SIZE];
-   int buffer_written_size = sprintf(buffer, "Method: %s\nPath: %s\nHost: %s\nUser Agent: %s\nAccept: %s\nHeaders: [\n", method, path, host, user_agent, accept);
-
-   ll_node_t *headers = NULL;
-   char *header = rest;
-   while (*header != '\0')
+int http_request_parse_request_line(http_request_t *http_request, char **request_ptr)
+{
+   char *request = *request_ptr;
+   http_request->method = strtok_r(request, " ", &request);
+   if (http_request->method == NULL)
    {
-      header = strtok_r(rest, "\n", &rest);
-      if (*header == '\r' || *(header + 1) == '\r')
-      {
-         break;
-      }
-      else
-      {
-         char *header_name = strtok_r(header, ":", &header);
-         header++;
-         char *header_value = header;
-         header_t *new_header = malloc(sizeof(header_t));
-         new_header->name = header_name;
-         new_header->value = header_value;
-         headers = insert_in_head(headers, (void *)new_header);
-         buffer_written_size += sprintf(&buffer[buffer_written_size], "\t%s: %s\n", header_name, header_value);
-      }
+      printf("Invalid request received");
+      return -1;
+   }
+   else
+   {
+      http_request->method = strdup(http_request->method);
    }
 
-   printf("Headers: [\n");
-   ll_node_t *current_header = headers;
-   int content_length = -1;
-   char *content_type = NULL;
-   while (current_header != NULL)
+   http_request->path = strtok_r(request, " ", &request);
+   if (http_request->path == NULL)
    {
-      header_t *new_header = (header_t *)current_header->element;
-      printf(" %s: %s\n", (char *)new_header->name, (char *)new_header->value);
-      if (strcmp("Content-Length", new_header->name) == 0)
-      {
-         content_length = atoi(new_header->value);
-      }
-      else if (strcmp("Content-Type", new_header->name) == 0)
-      {
-         content_type = new_header->value;
-      }
-      current_header = current_header->next;
+      printf("Invalid request received\n");
+      return -1;
    }
-   printf("]\n");
-   strcat(buffer, "]\n\n");
-   free_linked_list(headers, (ll_map_function_t)free_with_arg);
-
-   char *content_ptr = NULL;
-   if (content_length > 0)
+   else
    {
-      char content[content_length + 1];
-      content[content_length] = '\0';
-      content_ptr = content;
-      memcpy(content, rest, content_length);
-      printf("Content: %s\n", content);
-      strcat(buffer, content);
+      http_request->path = strdup(http_request->path);
    }
-   strcat(buffer, "\n\n");
-   write_log(buffer);
 
-   construct_response(client_socket, method, path, content_ptr, content_type);
+   http_request->http_version = strtok_r(request, "\n", &request);
+   if (http_request->http_version == NULL)
+   {
+      printf("Invalid request received\n");
+      return -1;
+   }
+   else
+   {
+      http_request->http_version = strdup(http_request->http_version);
+   }
+   *request_ptr = request;
+   return 0;
+}
+
+int http_request_parse_headers(http_request_t *http_request, char **request_ptr)
+{
+   char *request = *request_ptr;
+   int request_size = strlen(request);
+
+   if (request_size == 0)
+   {
+      printf("Empty request\n");
+      return 1;
+   }
+
+   char *header_end = strstr(request, "\r\n\r\n");
+   if (!header_end)
+   {
+      printf("Invalid request\n");
+      return -1;
+   }
+
+   *header_end = '\0';
+   char *body = header_end + 4; // Body pointer after "\r\n\r\n"
+
+   char *header_str;
+   while ((header_str = strtok_r(request, "\r\n", &request)) != NULL)
+   {
+      header_t *header = malloc(sizeof(header_t));
+      char *header_name = strtok_r(header_str, ":", &header_str);
+      if (header_name && *header_str == ' ')
+      {
+         header_str++;
+      }
+      header->name = strdup(header_name);
+      header->value = strdup(header_str);
+      if (strcmp(header_name, "Content-Length") == 0)
+      {
+         http_request->content_length = (int)strtol(header->value, NULL, 10);
+      }
+      http_request->headers = insert_in_head(http_request->headers, header);
+      http_request->headers_length += strlen(header->name) + strlen(header->value) + 4; // +1 to add \n\t and ": " later
+   }
+   *request_ptr = body;
+   return *body != '\0'; // 1 if this is not the end of the headers part, 0 if this is the body or empty.
+}
+
+int http_request_parse_body(http_request_t *http_request, char **request_ptr)
+{
+   char *request = *request_ptr;
+   int request_size = strlen(request);
+   int added_body_length = MIN(request_size, http_request->content_length);
+   if (http_request->body == NULL)
+   {
+      http_request->body = malloc(http_request->content_length + 1);
+      strncpy(http_request->body, request, added_body_length);
+      http_request->body[added_body_length] = '\0';
+   }
+   else
+   {
+      int body_size = strlen(http_request->body);
+      int remaining_body_size = http_request->content_length - body_size;
+      strncat(&http_request->body[body_size], request, remaining_body_size);
+   }
+   return added_body_length == http_request->content_length;
+}
+
+void *http_request_write_log_wrapper(void *http_request)
+{
+   http_request_write_log((http_request_t *)http_request);
+   return NULL;
 }
 
 void accept_connection(void)
 {
-   SOCKADDR_IN client_address;
+   sockaddr_in_t client_address;
    unsigned int client_address_len = sizeof(client_address);
    int client_socket;
 
@@ -242,12 +268,50 @@ void accept_connection(void)
       }
 
       char buffer[MAX_REQUEST_SIZE];
-      int size = read(client_socket, buffer, MAX_REQUEST_SIZE);
-      if (size > 0)
+      http_request_t http_request;
+      int is_first_request = 1;
+      int is_incorrect_request = 0;
+      int header_parsed = 0;
+      int done = 0;
+      int size;
+      while (!done && !is_incorrect_request && (size = read(client_socket, buffer, MAX_REQUEST_SIZE)) > 0)
       {
-         parse_http_request(buffer, client_socket);
+         char *buffer_ptr = buffer;
+         http_request.body = NULL;
+         http_request.headers = NULL;
+         http_request.content_length = 0;
+         http_request.headers_length = 0;
+         char **request_ptr = &buffer_ptr;
+
+         if (is_first_request == 1)
+         {
+            if (http_request_parse_request_line(&http_request, request_ptr) == -1)
+            {
+               is_incorrect_request = 1;
+               continue;
+            }
+            is_first_request = 0;
+         }
+
+         if (!header_parsed && http_request_parse_headers(&http_request, request_ptr) == 1)
+         {
+            header_parsed = 1;
+         }
+
+         if (http_request.content_length > 0)
+         {
+            done = http_request_parse_body(&http_request, request_ptr);
+         }
+         else
+         {
+            done = 1;
+         }
          memset(buffer, 0, size);
       }
+      pthread_t log_thread;
+      pthread_create(&log_thread, NULL, http_request_write_log_wrapper, (void *)&http_request);
+      pthread_detach(log_thread);
+      construct_response(client_socket, &http_request);
       close(client_socket);
    }
 }
@@ -288,6 +352,7 @@ void start_server(int port)
       exit(EXIT_FAILURE);
    }
 
+   parent_pid = getpid();
    for (int i = 0; i < nb_processes; i++)
    {
       pid_t pid = fork();
@@ -306,41 +371,4 @@ void start_server(int port)
 
    while (wait(NULL) > 0)
       ; /* Wait for all child processes to finish */
-}
-
-int main(int argc, char **argv)
-{
-   int port;
-   if (argc > 1)
-   {
-      port = atoi(argv[1]);
-   }
-   else
-   {
-      printf("Please enter a port number");
-      return 0;
-   }
-   if (argc > 2)
-   {
-      nb_processes = atoi(argv[2]);
-   }
-
-   char hostname[_SC_HOST_NAME_MAX + 1];
-   gethostname(hostname, _SC_HOST_NAME_MAX + 1);
-
-   const endpoint_t endpoints[] = {
-       {"/hostname", {{.content = hostname}, ET_TEXT, TEXT, HTTP_STATUS_OK}},
-       {"/", {{.content = "src/index.html"}, ET_FILE, HTML, HTTP_STATUS_OK}},
-       {"/test", {{.function = test_function}, ET_FUNC, HTML, HTTP_STATUS_CREATED}},
-       {"/public", {{.content = "src/public/"}, ET_DIRECTORY, NULL_CONTENT, HTTP_STATUS_OK}}};
-
-   error_response = (response_t){{.content = "Error"}, ET_TEXT, TEXT, HTTP_STATUS_OK};
-
-   http_tree = build_http_tree(endpoints, sizeof(endpoints) / sizeof(endpoint_t));
-   print_http_tree(http_tree, 0);
-   parent_pid = getpid();
-   printf("Starting server on process %d\n", parent_pid);
-   start_server(port);
-
-   return 0;
 }

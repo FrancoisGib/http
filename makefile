@@ -22,10 +22,10 @@ dir:
 	$(CC) $(CFLAGS) -c $< -o $(DIR)/$@
 
 http: dir $(OBJECTS)
-	$(CC) $(CFLAGS) -o http $(OBJECTS_DIR)
+	$(CC) $(CFLAGS) -o http main.c $(OBJECTS_DIR)
 
 docker-image: http.o $(OBJECTS)
-	$(CC) --static $(CFLAGS) -o http $(OBJECTS_DIR)
+	$(CC) --static $(CFLAGS) -o http main.c $(OBJECTS_DIR)
 	docker build -t http-server .
 
 clean:

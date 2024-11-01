@@ -24,7 +24,6 @@ const char *get_content_type_with_file_extension(char *path)
    content_type_e content_type = NULL_CONTENT;
    char *extension = path;
    strtok_r(path, ".", &extension);
-   printf("extension %s\n", extension);
    if (extension != NULL)
    {
       if (strcmp(extension, "js") == 0)

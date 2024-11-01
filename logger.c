@@ -1,6 +1,6 @@
 #include "logger.h"
 
-int write_log(char *message)
+int write_log(char *log_message)
 {
    time_t t = time(NULL);
    tm_t tm = *localtime(&t);
@@ -9,7 +9,7 @@ int write_log(char *message)
    {
       if (mkdir("logs", 0700)) /* drw------- */
       {
-         perror("Error creating log file");
+         printf("Error creating log file");
          return -1;
       }
    }
@@ -22,10 +22,48 @@ int write_log(char *message)
    FILE *log_file = fopen(time_str, "a");
    if (log_file != NULL)
    {
-      size_t message_length = (strlen(message));
-      int wrote_size = (int)fwrite(message, 1, message_length, log_file);
+      size_t message_length = (strlen(log_message));
+      int wrote_size = (int)fwrite(log_message, 1, message_length, log_file);
       return fclose(log_file) == 0 && -(wrote_size != (int)message_length);
    }
-   perror("Error opening log file");
+   printf("Error opening log file");
    return -1;
+}
+
+void http_request_write_log(http_request_t *http_request)
+{
+   int method_length = strlen(http_request->method);
+   int path_length = strlen(http_request->path);
+   int http_version_length = strlen(http_request->http_version);
+   int content_length = strlen(http_request->body);
+   int additional_length = strlen("METHOD: \nPATH: \nHTTP VERSION: \nHEADERS: [\n]\nBODY:\n");
+   int buffer_size = method_length + 1 + path_length + 1 + http_version_length + 1 + content_length + 1 + http_request->headers_length + additional_length;
+   char buffer[buffer_size + 1];
+   memset(buffer, 0, buffer_size);
+   sprintf(buffer, "METHOD: %s\nPATH: %s\nHTTP VERSION: %s\nHEADERS: [\n", http_request->method, http_request->path, http_request->http_version);
+
+   ll_node_t *header_node = http_request->headers;
+   while (header_node != NULL)
+   {
+      header_t *header = header_node->element;
+      strcat(buffer, "\t");
+      strcat(buffer, header->name);
+      strcat(buffer, ": ");
+      strcat(buffer, header->value);
+      strcat(buffer, "\n");
+      header_node = header_node->next;
+   }
+
+   if (http_request->content_length > 0)
+   {
+      strcat(buffer, "]\nBODY:\n");
+      strcat(buffer, http_request->body);
+   }
+   else
+   {
+      strcat(buffer, "]\n");
+   }
+   printf("%s\n-----------------\n", buffer);
+   write_log(buffer);
+   write_log("\n-----------------\n");
 }

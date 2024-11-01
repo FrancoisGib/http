@@ -1,4 +1,17 @@
-```c
+#include "http.h"
+
+extern int sock;
+extern int nb_processes;
+extern tree_t *http_tree;
+extern response_t error_response;
+
+char *test_function(char *content)
+{
+   char *str = malloc(strlen("<p>test</p>") + 1);
+   strcpy(str, "<p>test</p>");
+   return str;
+}
+
 int main(int argc, char **argv)
 {
    int port;
@@ -34,32 +47,3 @@ int main(int argc, char **argv)
 
    return 0;
 }
-```
-
-```bash
-make http
-./http { port }
-```
-
-```bash
-# Careful not to forget to copy your served files in the Dockerfile if you have some.
-make docker-image
-```
-
-## Data Structure
-
-The data structure used to make the endpoints is a tree. It's children are also trees contained in a linked list. This tree structure allow to search and add endpoints efficiently and quickly.
-Example:
-url: /1/2/3
-Here, there's is one endpoint and three trees whose paths are /1, /2 and /3. But the only resource served is at the /1/2/3 endpoint.
-
-In the main example, the tree structure is:
-```
-├── / serving an http file with "Hello world" content
-    └── /hostname serving machine hostname
-    └── /test serving "<p>test</p>" (returned by a function taking the content of the request, so it can be set dynamically)
-    └── /public serving src/public folder
-```
-
-
-*nb: it is not a project made to be used in real applications (for now anyway), and i'm doing it for fun*
