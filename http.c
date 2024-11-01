@@ -25,16 +25,6 @@ void sigint_handler(int code)
    exit(0);
 }
 
-char *strdup(const char *str)
-{
-   char *dup = malloc(strlen(str) + 1);
-   if (dup != NULL)
-   {
-      strcpy(dup, str);
-   }
-   return dup;
-}
-
 int read_file(char buffer[1024], char *file_path)
 {
    stat_t st;

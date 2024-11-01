@@ -5,7 +5,8 @@ CFLAGS = -Wall -Wextra -std=c11 -Wpedantic \
           -Wredundant-decls -Wnested-externs -Wmissing-include-dirs \
 			 -Wjump-misses-init -Wlogical-op -O3 -D_POSIX_C_SOURCE=200112L
 
-OBJECTS = linked_list.o \
+OBJECTS = lib.o \
+			 linked_list.o \
           tree.o \
           http_tree.o \
 			 logger.o \

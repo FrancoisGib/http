@@ -11,6 +11,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
+#include "lib.h"
 #include "http_tree.h"
 #include "logger.h"
 
@@ -20,8 +21,6 @@
 #ifndef NB_PROCESSES
 #define NB_PROCESSES 10
 #endif
-
-#define MIN(x, y) (x) < (y) ? (x) : (y)
 
 typedef struct sockaddr_in sockaddr_in_t;
 
@@ -52,7 +51,6 @@ typedef struct http_request_s
 } http_request_t;
 
 void sigint_handler(int code);
-char *strdup(const char *str);
 int read_file(char buffer[1024], char *file_path);
 void construct_response(int client_socket, http_request_t *http_request);
 void send_error_response(int client_socket);
