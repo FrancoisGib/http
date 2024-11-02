@@ -259,7 +259,7 @@ int ssl_read(int client_socket, char buffer[MAX_REQUEST_SIZE])
 {
    if (SSL_accept(ssl) <= 0)
    {
-      ERR_print_errors_fp(stderr);
+      // ERR_print_errors_fp(stderr);
       return -1;
    }
    else
@@ -267,7 +267,7 @@ int ssl_read(int client_socket, char buffer[MAX_REQUEST_SIZE])
       int size = 0;
       if ((size = SSL_read(ssl, buffer, MAX_REQUEST_SIZE)) <= 0)
       {
-         ERR_print_errors_fp(stderr);
+         // ERR_print_errors_fp(stderr);
          return -1;
       };
       return size;
@@ -324,7 +324,16 @@ void accept_connection(void)
       if (tls)
       {
          ssl = SSL_new(ctx);
-         SSL_set_fd(ssl, client_socket);
+         if (ssl == NULL)
+         {
+            printf("Error\n");
+            continue;
+         }
+         if (SSL_set_fd(ssl, client_socket) == 0)
+         {
+            printf("Error2\n");
+            continue;
+         }
       }
 
       char buffer[MAX_REQUEST_SIZE];
@@ -375,12 +384,19 @@ void accept_connection(void)
       // pthread_t log_thread;
       // pthread_create(&log_thread, NULL, http_request_write_log_wrapper, (void *)&http_request);
       // pthread_detach(log_thread);
-      construct_response(client_socket, &http_request);
-      http_request_write_log(&http_request);
+      if (size == -1)
+      {
+         printf("Error with the request\n");
+      }
+      else
+      {
+         construct_response(client_socket, &http_request);
+         http_request_write_log(&http_request);
+         free_http_request_args(&http_request);
+      }
       SSL_shutdown(ssl);
       SSL_free(ssl);
       close(client_socket);
-      free_http_request_args(&http_request);
    }
 }
 

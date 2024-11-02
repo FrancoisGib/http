@@ -58,7 +58,7 @@ In the main example, the tree structure is:
 ├── / serving an http file with "Hello world" content
     └── /hostname serving machine hostname
     └── /test serving "<p>test</p>" (returned by a function taking the content of the request, so it can be set dynamically)
-    └── /public serving src/public folder
+    └── /public serving examples/public folder
 ```
 
 

@@ -6,6 +6,13 @@ extern tree_t *http_tree;
 extern response_t error_response;
 extern int tls;
 
+void signal_handler2(int signum)
+{
+   printf("Received signal %d, shutting down gracefully...\n", signum);
+   // Ici, vous pouvez fermer vos connexions et libérer des ressources.
+   exit(0);
+}
+
 char *test_function(char *content)
 {
    char *str = malloc(strlen("<p>test</p>") + 1);
@@ -35,9 +42,9 @@ int main(int argc, char **argv)
 
    const endpoint_t endpoints[] = {
        {"/hostname", {{.content = hostname}, ET_TEXT, TEXT, HTTP_STATUS_OK}},
-       {"/", {{.content = "src/index.html"}, ET_FILE, HTML, HTTP_STATUS_OK}},
+       {"/", {{.content = "examples/index.html"}, ET_FILE, HTML, HTTP_STATUS_OK}},
        {"/test", {{.function = test_function}, ET_FUNC, HTML, HTTP_STATUS_CREATED}},
-       {"/public", {{.content = "src/public"}, ET_DIRECTORY, NULL_CONTENT, HTTP_STATUS_OK}}};
+       {"/public", {{.content = "examples/public"}, ET_DIRECTORY, NULL_CONTENT, HTTP_STATUS_OK}}};
 
    error_response = (response_t){{.content = "Error"}, ET_TEXT, TEXT, HTTP_STATUS_OK};
 

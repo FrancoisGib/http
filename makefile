@@ -6,6 +6,8 @@ CFLAGS = -Wall -Wextra -std=c11 -Wpedantic \
 			 -Wjump-misses-init -Wlogical-op -O3 -D_POSIX_C_SOURCE=200112L
 
 LFLAGS = -lssl -lcrypto
+INCLUDE = -I./include
+STATIC = -L/usr/local/openssl/lib64 -I/usr/local/openssl/include -static
 
 OBJECTS = lib.o \
 			 linked_list.o \
@@ -15,22 +17,23 @@ OBJECTS = lib.o \
 			 ssl.o \
 			 http.o
 
-DIR = objects
+SRC_DIR = src
+BUILD_DIR = build
 
-OBJECTS_DIR = $(addprefix $(DIR)/, $(OBJECTS))
+OBJECTS_DIR = $(addprefix $(BUILD_DIR)/, $(OBJECTS))
 
 dir:
-	mkdir -p objects
+	mkdir -p $(BUILD_DIR)
 
-%.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $(DIR)/$@
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
+	$(CC) $(CFLAGS) -c $< -o $@ $(INCLUDE)
 
-http: dir $(OBJECTS)
-	$(CC) $(CFLAGS) -o http main.c $(OBJECTS_DIR) $(LFLAGS)
+http: dir $(OBJECTS_DIR)
+	$(CC) $(CFLAGS) -o http $(SRC_DIR)/main.c $(OBJECTS_DIR) $(INCLUDE) $(LFLAGS)
 
-docker-image: dir $(OBJECTS)
-	gcc -o http main.c $(OBJECTS_DIR) -L/usr/local/openssl/lib -I/usr/local/openssl/include $(LFLAGS) -static
+docker-image: dir $(OBJECTS_DIR)
+	$(CC) -o http $(SRC_DIR)/main.c $(OBJECTS_DIR) $(INCLUDE) $(STATIC) $(LFLAGS)
 	docker build -t http-server .
 
 clean:
-	rm -rf *.o http logs objects
+	rm -rf *.o http logs build

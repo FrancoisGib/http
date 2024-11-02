@@ -3,7 +3,7 @@ FROM scratch
 WORKDIR /app
 
 COPY http ./
-COPY src ./src
+COPY examples ./examples
 
 COPY cert ./cert
 
