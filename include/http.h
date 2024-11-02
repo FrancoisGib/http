@@ -17,8 +17,11 @@
 #include "lib.h"
 #include "http_tree.h"
 #include "logger.h"
-#include "ssl.h"
 #include "vars.h"
+
+// #ifdef SSL
+#include "ssl.h"
+// #endif
 
 typedef struct sockaddr_in sockaddr_in_t;
 

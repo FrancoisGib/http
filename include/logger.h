@@ -19,4 +19,4 @@ typedef struct http_request_s http_request_t; // Forward declaration
 int write_log(char *message);
 void http_request_write_log(http_request_t *http_request);
 
-#endif
+#endif // LOGGER_H

@@ -70,7 +70,7 @@ In the main example, the tree structure is:
 
 ## TLS
 
-The server supports TLS 1.2 with openssl, to install openssl use apt with `apt install openssl` or use the installation guide [OpenSSL](https://github.com/openssl/openssl/blob/master/INSTALL.md)
+The server supports TLS 1.3 with openssl, to install openssl use apt with `apt install openssl` or use the installation guide [OpenSSL](https://github.com/openssl/openssl/blob/master/INSTALL.md)
 
 The cert folder is not to be used, use your certificates.
 

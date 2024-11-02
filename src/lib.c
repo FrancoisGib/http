@@ -1,6 +1,6 @@
 #include "lib.h"
 
-char *strdup(const char *str)
+char *mstrdup(const char *str)
 {
    char *dup = malloc(strlen(str) + 1);
    if (dup != NULL)
@@ -10,7 +10,7 @@ char *strdup(const char *str)
    return dup;
 }
 
-int read_file(char buffer[MAX_RESPONSE_SIZE], char *file_path)
+int read_file(char buffer[MAX_FILE_READ_SIZE], char *file_path)
 {
    stat_t st;
    if (stat(file_path, &st) == -1)
@@ -20,12 +20,14 @@ int read_file(char buffer[MAX_RESPONSE_SIZE], char *file_path)
    if (!S_ISDIR(st.st_mode) && access(file_path, R_OK) == 0)
    {
       FILE *file = fopen(file_path, "r");
-      int size = (int)fread(buffer, 1, MAX_RESPONSE_SIZE, file);
+      int size = (int)fread(buffer, 1, MAX_FILE_READ_SIZE, file);
       fclose(file);
       return size;
    }
    return -1;
 }
+
+// extern ssize_t pread(int fd, void *buf, size_t count, off_t offset);
 
 int read_file_block(char buffer[MAX_FILE_READ_SIZE], int fd, int block)
 {

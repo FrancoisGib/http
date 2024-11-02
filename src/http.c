@@ -57,6 +57,7 @@ void construct_response(int client_socket, http_request_t *http_request)
       }
       else
       {
+         http_request->path = endpoint->response.resource.content;
          content_length = (int)st.st_size;
       }
    }
@@ -162,9 +163,9 @@ void construct_response(int client_socket, http_request_t *http_request)
             char buf[content_length + strlen(response) + 1];
             memset(buf, 0, content_length + strlen(response) + 1);
             strcpy(buf, response);
-            int block = 0;
-            if (read_file(&buf[strlen(response)], http_request->path) != -1)
+            if (read_file(buf, http_request->path) != -1)
             {
+               strcat(response, buf);
                write_size = (int)SSL_write(ssl, buf, strlen(response) + content_length);
             }
             else
@@ -174,22 +175,40 @@ void construct_response(int client_socket, http_request_t *http_request)
          }
          else
          {
-            printf("here\n");
-            write_size = (int)SSL_write(ssl, response, strlen(response));
-            char buf[MAX_FILE_READ_SIZE];
-            memset(buf, 0, MAX_FILE_READ_SIZE);
-            int read_size;
-            int fd = open(http_request->path, O_RDONLY);
-            if (fd != -1)
+            int response_length = strlen(response);
+            if (response_length + content_length < MAX_RESPONSE_SIZE && content_length <= MAX_FILE_READ_SIZE)
             {
-               int block = 0;
-               while ((read_size = read_file_block(buf, fd, block)) > 0)
+               char buf[content_length + 1];
+               memset(buf, 0, content_length);
+
+               if (read_file(buf, http_request->path) != -1)
                {
-                  write_size = (int)SSL_write(ssl, buf, strlen(buf));
-                  block++;
-                  memset(buf, 0, MAX_FILE_READ_SIZE);
+                  strcat(response, buf);
+                  write_size = (int)SSL_write(ssl, response, response_length + content_length);
                }
-               close(fd);
+               else
+               {
+                  printf("Error reading file\n");
+               }
+            }
+            else
+            {
+               write_size = (int)SSL_write(ssl, response, response_length);
+               char buf[MAX_FILE_READ_SIZE];
+               memset(buf, 0, MAX_FILE_READ_SIZE);
+               int read_size;
+               int fd = open(http_request->path, O_RDONLY);
+               if (fd != -1)
+               {
+                  int block = 0;
+                  while ((read_size = read_file_block(buf, fd, block)) > 0)
+                  {
+                     write_size = (int)SSL_write(ssl, buf, strlen(buf));
+                     block++;
+                     memset(buf, 0, MAX_FILE_READ_SIZE);
+                  }
+                  close(fd);
+               }
             }
          }
       }
@@ -220,7 +239,7 @@ int http_request_parse_request_line(http_request_t *http_request, char **request
    }
    else
    {
-      http_request->method = strdup(http_request->method);
+      http_request->method = mstrdup(http_request->method);
    }
 
    http_request->path = strtok_r(request, " ", &request);
@@ -231,7 +250,7 @@ int http_request_parse_request_line(http_request_t *http_request, char **request
    }
    else
    {
-      http_request->path = strdup(http_request->path);
+      http_request->path = mstrdup(http_request->path);
    }
 
    http_request->http_version = strtok_r(request, "\n", &request);
@@ -242,7 +261,7 @@ int http_request_parse_request_line(http_request_t *http_request, char **request
    }
    else
    {
-      http_request->http_version = strdup(http_request->http_version);
+      http_request->http_version = mstrdup(http_request->http_version);
    }
    *request_ptr = request;
    return 0;
@@ -278,8 +297,8 @@ int http_request_parse_headers(http_request_t *http_request, char **request_ptr)
       {
          header_str++;
       }
-      header->name = strdup(header_name);
-      header->value = strdup(header_str);
+      header->name = mstrdup(header_name);
+      header->value = mstrdup(header_str);
       if (strcmp(header_name, "Content-Length") == 0)
       {
          http_request->content_length = (int)strtol(header->value, NULL, 10);
