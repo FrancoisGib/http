@@ -59,7 +59,6 @@ void construct_response(int client_socket, http_request_t *http_request)
       {
          content_length = (int)st.st_size;
       }
-      // content_length = read_file(buffer, endpoint->response.resource.content);
    }
    else if (endpoint->response.type == ET_TEXT)
    {
@@ -93,8 +92,8 @@ void construct_response(int client_socket, http_request_t *http_request)
       if (*path_ptr != '\0')
       {
          strcat(file_path, path_ptr);
+         free(http_request->path);
          http_request->path = file_path;
-         // endpoint->response.type = ET_FILE;
          stat_t st;
          stat(file_path, &st);
          if (stat(file_path, &st) == -1)
@@ -105,8 +104,6 @@ void construct_response(int client_socket, http_request_t *http_request)
          {
             content_length = (int)st.st_size;
          }
-         // content_length =
-         //     content_length = read_file(buffer, file_path);
       }
       else
       {
@@ -158,37 +155,47 @@ void construct_response(int client_socket, http_request_t *http_request)
    int write_size = -1;
    if (tls)
    {
-
       if (content_length > 0 && (endpoint->response.type == ET_FILE || endpoint->response.type == ET_DIRECTORY))
       {
          if (strcmp(content_type_str, "Content-Type: image/x-icon\r\n\r\n") == 0 || strcmp(content_type_str, "Content-Type: image/png\r\n\r\n") == 0)
          {
-            printf("conten %s\n", content_type_str);
-            char buf[content_length + 1 + strlen(response)];
+            char buf[content_length + strlen(response) + 1];
+            memset(buf, 0, content_length + strlen(response) + 1);
             strcpy(buf, response);
-            buf[strlen(response)] = '\0';
-            printf("file path %s\n", http_request->path);
             int block = 0;
-            read_file(&buf[strlen(response)], http_request->path);
-            printf("ssl \n");
-            write_size = (int)SSL_write(ssl, buf, strlen(response) + content_length);
+            if (read_file(&buf[strlen(response)], http_request->path) != -1)
+            {
+               write_size = (int)SSL_write(ssl, buf, strlen(response) + content_length);
+            }
+            else
+            {
+               printf("Error reading file\n");
+            }
          }
          else
          {
+            printf("here\n");
             write_size = (int)SSL_write(ssl, response, strlen(response));
-            memset(buffer, 0, MAX_FILE_READ_SIZE);
+            char buf[MAX_FILE_READ_SIZE];
+            memset(buf, 0, MAX_FILE_READ_SIZE);
             int read_size;
             int fd = open(http_request->path, O_RDONLY);
-            printf("file path %s\n", http_request->path);
-            int block = 0;
-            while ((read_size = read_file_block(buffer, fd, block)) > 0)
+            if (fd != -1)
             {
-               write_size = (int)SSL_write(ssl, buffer, strlen(buffer));
-               block++;
-               memset(buffer, 0, MAX_FILE_READ_SIZE);
+               int block = 0;
+               while ((read_size = read_file_block(buf, fd, block)) > 0)
+               {
+                  write_size = (int)SSL_write(ssl, buf, strlen(buf));
+                  block++;
+                  memset(buf, 0, MAX_FILE_READ_SIZE);
+               }
+               close(fd);
             }
-            close(fd);
          }
+      }
+      else
+      {
+         write_size = (int)SSL_write(ssl, response, strlen(response));
       }
    }
    else
@@ -279,27 +286,34 @@ int http_request_parse_headers(http_request_t *http_request, char **request_ptr)
       }
       else if (strcmp(header_name, "Referer") == 0)
       {
-         char *split = strchr(header->value, '/');
-         split += 2;
-         split = strchr(split, '/');
-         split++;
-         char *ok = search_last_occurence(split, '/');
-         if (split != NULL)
+         char *referee_path = strchr(header->value, '/');
+         referee_path += 2;
+         referee_path = strchr(referee_path, '/');
+         referee_path++;
+         char *referer_directory_end_pointer = search_last_occurence(referee_path, '/');
+         if (referee_path != NULL)
          {
-            int size = ok - split;
-            char *new_path = malloc(size + strlen(http_request->path) + 1);
-            strncpy(new_path, split, size);
-            new_path[size] = '\0';
-            strcat(new_path, http_request->path);
+            int diff_size = referer_directory_end_pointer - referee_path;
+            char *new_path = malloc(diff_size + strlen(http_request->path) + 1);
+            memset(new_path, 0, diff_size + strlen(http_request->path) + 1);
+            strncpy(new_path, referee_path, diff_size);
+            new_path[diff_size] = '\0';
+            if (strncmp(new_path, http_request->path + 1, strlen(new_path)) == 0)
+            {
+               strcat(new_path, http_request->path + strlen(new_path) + 1);
+            }
+            else
+            {
+               strcat(new_path, http_request->path);
+            }
             free(http_request->path);
             http_request->path = new_path;
          }
-         printf("path %s\n", http_request->path);
       }
       http_request->headers = insert_in_head(http_request->headers, header);
       http_request->headers_length += strlen(header->name) + strlen(header->value) + 4; // +1 to add \n\t and ": " later
    }
-   request_ptr = body;
+   *request_ptr = body;
    return *body != '\0'; // 1 if this is not the end of the headers part, 0 if this is the body or empty.
 }
 
@@ -430,7 +444,7 @@ void accept_connection(void)
          http_request.headers_length = 0;
          char **request_ptr = &buffer_ptr;
          printf("%s\n", buffer);
-         if (is_first_request == 1)
+         if (is_first_request)
          {
             if (http_request_parse_request_line(&http_request, request_ptr) == -1)
             {
@@ -466,10 +480,14 @@ void accept_connection(void)
       {
          construct_response(client_socket, &http_request);
          http_request_write_log(&http_request);
-         free_http_request_args(&http_request);
       }
-      SSL_shutdown(ssl);
-      SSL_free(ssl);
+      free_http_request_args(&http_request);
+      if (tls)
+      {
+         SSL_shutdown(ssl);
+         SSL_free(ssl);
+         ssl = NULL;
+      }
       close(client_socket);
    }
 }

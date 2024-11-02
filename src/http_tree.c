@@ -184,7 +184,6 @@ void add_endpoint(tree_t *tree, const char *path, response_t response)
       {
          endpoint_t *endpoint = malloc(sizeof(endpoint_t));
          endpoint->path = first_part;
-         printf("%s\n", endpoint->path);
          child = add_child(tree, (void *)endpoint);
          if (*rest != '\0')
          {
@@ -249,8 +248,7 @@ tree_t *build_http_tree(const endpoint_t endpoints[], int n)
    for (int i = 0; i < n; i++)
    {
       endpoint_t endpoint = endpoints[i];
-      char *path = strdup(endpoint.path);
-      add_endpoint(tree, path, endpoint.response);
+      add_endpoint(tree, endpoint.path, endpoint.response);
    }
    return tree;
 }
