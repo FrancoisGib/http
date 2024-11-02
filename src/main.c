@@ -3,10 +3,10 @@
 extern int sock;
 extern int nb_processes;
 extern tree_t *http_tree;
-extern response_t error_response;
+extern http_response_t error_response;
 extern int tls;
 
-char *test_function(char *content)
+char *test_function(http_request_t *http_request)
 {
    char *str = malloc(strlen("<p>test</p>") + 1);
    strcpy(str, "<p>test</p>");
@@ -41,7 +41,7 @@ int main(int argc, char **argv)
        {"/build", {{.content = "examples/app/build"}, ET_DIRECTORY, NULL_CONTENT, HTTP_STATUS_OK}},
    };
 
-   error_response = (response_t){{.content = "Error"}, ET_TEXT, TEXT, HTTP_STATUS_OK};
+   error_response = (http_response_t){{.content = "Error"}, NULL, strlen("Error"), TEXT, HTTP_STATUS_OK};
 
    tls = 1;
    http_tree = build_http_tree(endpoints, sizeof(endpoints) / sizeof(endpoint_t));

@@ -3,7 +3,7 @@
 int sock = -1;
 int nb_processes = NB_PROCESSES;
 tree_t *http_tree;
-response_t error_response;
+http_response_t error_response;
 pid_t parent_pid;
 int tls = 0;
 SSL_CTX *ctx = NULL;
@@ -36,7 +36,8 @@ void sigint_handler(int code)
    exit(0);
 }
 
-void construct_response(int client_socket, http_request_t *http_request)
+/*
+void construct_response2(int client_socket, http_request_t *http_request)
 {
    endpoint_t *endpoint = get_endpoint(http_tree, http_request->path);
    if (endpoint == NULL)
@@ -84,89 +85,107 @@ void construct_response(int client_socket, http_request_t *http_request)
          size--;
       }
       path_ptr += strlen(endpoint->path) + 1;
-      char *file_path = malloc(strlen(path_ptr) + strlen(endpoint->response.resource.content) + 2); /* pass the \0 made by get_endpoint */
-                                                                                                    // add 1 more if there's no / at the end of the directory path
-      strcpy(file_path, endpoint->response.resource.content);
-      int file_path_size = (int)strlen(endpoint->response.resource.content);
-      file_path[file_path_size] = '/'; // always / at the end
-      file_path[file_path_size + 1] = '\0';
-      if (*path_ptr != '\0')
-      {
-         strcat(file_path, path_ptr);
-         free(http_request->path);
-         http_request->path = file_path;
-         stat_t st;
-         stat(file_path, &st);
-         if (stat(file_path, &st) == -1)
-         {
-            content_length = -1;
-         }
-         else
-         {
-            content_length = (int)st.st_size;
-         }
-      }
-      else
-      {
-         content_length = -1;
-      }
-   }
-
-   char content_type_str[64] = "Content-Type: ";
-   if (content_length == -1)
+      char *file_path = malloc(strlen(path_ptr) + strlen(endpoint->response.resource.content) + 2); # pass the \0 made by get_endpoint
+// add 1 more if there's no / at the end of the directory path
+strcpy(file_path, endpoint->response.resource.content);
+int file_path_size = (int)strlen(endpoint->response.resource.content);
+file_path[file_path_size] = '/'; // always / at the end
+file_path[file_path_size + 1] = '\0';
+if (*path_ptr != '\0')
+{
+   strcat(file_path, path_ptr);
+   free(http_request->path);
+   http_request->path = file_path;
+   stat_t st;
+   stat(file_path, &st);
+   if (stat(file_path, &st) == -1)
    {
-      char message[] = "Error";
-      strcpy(buffer, message);
-      content_length = strlen(message);
-      strcat(content_type_str, get_content_type(error_response.content_type));
+      content_length = -1;
    }
    else
    {
-      if (endpoint->response.content_type == NULL_CONTENT)
+      content_length = (int)st.st_size;
+   }
+}
+else
+{
+   content_length = -1;
+}
+}
+
+char content_type_str[64] = "Content-Type: ";
+if (content_length == -1)
+{
+   char message[] = "Error";
+   strcpy(buffer, message);
+   content_length = strlen(message);
+   strcat(content_type_str, get_content_type(error_response.content_type));
+}
+else
+{
+   if (endpoint->response.content_type == NULL_CONTENT)
+   {
+      strcat(content_type_str, get_content_type_with_file_extension(http_request->path));
+   }
+   else
+   {
+      strcat(content_type_str, get_content_type(endpoint->response.content_type));
+   }
+}
+strcat(content_type_str, "\r\n\r\n");
+
+char content_length_buffer[7];
+sprintf(content_length_buffer, "%d", content_length);
+
+char content_length_str[32] = "Content-Length: ";
+strcat(content_length_str, content_length_buffer);
+strcat(content_length_str, "\r\n");
+
+char response[MAX_RESPONSE_SIZE] = "HTTP/1.1 ";
+
+char status_code[6];
+sprintf(status_code, "%d\r\n", endpoint->response.status);
+strcat(response, status_code);
+
+strcat(response, content_length_str);
+strcat(response, content_type_str);
+
+strcat(response, buffer);
+
+printf("-----------------\n%s\n-----------------\n", response);
+
+int write_size = -1;
+if (tls)
+{
+   if (content_length > 0 && (endpoint->response.type == ET_FILE || endpoint->response.type == ET_DIRECTORY))
+   {
+      if (strcmp(content_type_str, "Content-Type: image/x-icon\r\n\r\n") == 0 || strcmp(content_type_str, "Content-Type: image/png\r\n\r\n") == 0)
       {
-         strcat(content_type_str, get_content_type_with_file_extension(http_request->path));
+         char buf[content_length + strlen(response) + 1];
+         memset(buf, 0, content_length + strlen(response) + 1);
+         strcpy(buf, response);
+         if (read_file(buf, http_request->path) != -1)
+         {
+            strcat(response, buf);
+            write_size = (int)SSL_write(ssl, buf, strlen(response) + content_length);
+         }
+         else
+         {
+            printf("Error reading file\n");
+         }
       }
       else
       {
-         strcat(content_type_str, get_content_type(endpoint->response.content_type));
-      }
-   }
-   strcat(content_type_str, "\r\n\r\n");
-
-   char content_length_buffer[7];
-   sprintf(content_length_buffer, "%d", content_length);
-
-   char content_length_str[32] = "Content-Length: ";
-   strcat(content_length_str, content_length_buffer);
-   strcat(content_length_str, "\r\n");
-
-   char response[MAX_RESPONSE_SIZE] = "HTTP/1.1 ";
-
-   char status_code[6];
-   sprintf(status_code, "%d\r\n", endpoint->response.status);
-   strcat(response, status_code);
-
-   strcat(response, content_length_str);
-   strcat(response, content_type_str);
-
-   strcat(response, buffer);
-
-   printf("-----------------\n%s\n-----------------\n", response);
-
-   int write_size = -1;
-   if (tls)
-   {
-      if (content_length > 0 && (endpoint->response.type == ET_FILE || endpoint->response.type == ET_DIRECTORY))
-      {
-         if (strcmp(content_type_str, "Content-Type: image/x-icon\r\n\r\n") == 0 || strcmp(content_type_str, "Content-Type: image/png\r\n\r\n") == 0)
+         int response_length = strlen(response);
+         if (response_length + content_length < MAX_RESPONSE_SIZE && content_length <= MAX_FILE_READ_SIZE)
          {
-            char buf[content_length + strlen(response) + 1];
-            memset(buf, 0, content_length + strlen(response) + 1);
-            strcpy(buf, response);
+            char buf[content_length + 1];
+            memset(buf, 0, content_length);
+
             if (read_file(buf, http_request->path) != -1)
             {
                strcat(response, buf);
-               write_size = (int)SSL_write(ssl, buf, strlen(response) + content_length);
+               write_size = (int)SSL_write(ssl, response, response_length + content_length);
             }
             else
             {
@@ -175,57 +194,292 @@ void construct_response(int client_socket, http_request_t *http_request)
          }
          else
          {
-            int response_length = strlen(response);
-            if (response_length + content_length < MAX_RESPONSE_SIZE && content_length <= MAX_FILE_READ_SIZE)
+            write_size = (int)SSL_write(ssl, response, response_length);
+            char buf[MAX_FILE_READ_SIZE];
+            memset(buf, 0, MAX_FILE_READ_SIZE);
+            int read_size;
+            int fd = open(http_request->path, O_RDONLY);
+            if (fd != -1)
             {
-               char buf[content_length + 1];
-               memset(buf, 0, content_length);
-
-               if (read_file(buf, http_request->path) != -1)
+               int block = 0;
+               while ((read_size = read_file_block(buf, fd, block)) > 0)
                {
-                  strcat(response, buf);
-                  write_size = (int)SSL_write(ssl, response, response_length + content_length);
+                  write_size = (int)SSL_write(ssl, buf, strlen(buf));
+                  block++;
+                  memset(buf, 0, MAX_FILE_READ_SIZE);
                }
-               else
-               {
-                  printf("Error reading file\n");
-               }
-            }
-            else
-            {
-               write_size = (int)SSL_write(ssl, response, response_length);
-               char buf[MAX_FILE_READ_SIZE];
-               memset(buf, 0, MAX_FILE_READ_SIZE);
-               int read_size;
-               int fd = open(http_request->path, O_RDONLY);
-               if (fd != -1)
-               {
-                  int block = 0;
-                  while ((read_size = read_file_block(buf, fd, block)) > 0)
-                  {
-                     write_size = (int)SSL_write(ssl, buf, strlen(buf));
-                     block++;
-                     memset(buf, 0, MAX_FILE_READ_SIZE);
-                  }
-                  close(fd);
-               }
+               close(fd);
             }
          }
-      }
-      else
-      {
-         write_size = (int)SSL_write(ssl, response, strlen(response));
       }
    }
    else
    {
-      write_size = (int)write(client_socket, response, strlen(response));
+      write_size = (int)SSL_write(ssl, response, strlen(response));
    }
-   if (write_size < (int)strlen(response))
+}
+else
+{
+   write_size = (int)write(client_socket, response, strlen(response));
+}
+if (write_size < (int)strlen(response))
+{
+   printf("Error while sending response\n");
+   write_log("Error while sending response\n");
+}
+}
+*/
+
+void http_response_build_type_et_file(http_response_t *http_response, endpoint_t *endpoint)
+{
+   stat_t st;
+   if (stat(endpoint->response.resource.content, &st) == -1)
    {
-      printf("Error while sending response\n");
-      write_log("Error while sending response\n");
+      http_response->content_length = -1;
    }
+   else
+   {
+      http_response->resource.file_path = endpoint->response.resource.content;
+      http_response->content_type = get_content_type_with_file_extension(http_response->resource.file_path);
+      http_response->content_length = (int)st.st_size;
+   }
+}
+
+void http_response_build_type_et_text(http_response_t *http_response, endpoint_t *endpoint, char response_buffer[MAX_RESPONSE_SIZE])
+{
+   strcpy(response_buffer, endpoint->response.resource.content);
+   http_response->content_length = strlen(endpoint->response.resource.content);
+}
+
+void http_response_build_type_et_func(http_response_t *http_response, http_request_t *http_request, endpoint_t *endpoint, char response_buffer[MAX_RESPONSE_SIZE])
+{
+   resource_function function = endpoint->response.resource.function;
+   char *response_content = function(http_request);
+   http_response->content_length = strlen(response_content);
+   strcpy(response_buffer, response_content);
+   free(response_content);
+}
+
+void http_response_build_type_et_directory(http_response_t *http_response, http_request_t *http_request, endpoint_t *endpoint)
+{
+   char *path_ptr = http_request->path;
+   int size = strlen(path_ptr);
+   while (size > 0 && strcmp(path_ptr, endpoint->path) != 0)
+   {
+      path_ptr++;
+      size--;
+   }
+   path_ptr += strlen(endpoint->path) + 1;
+   char *file_path = malloc(strlen(path_ptr) + strlen(endpoint->response.resource.content) + 2);
+   // pass the \0 made by get_endpoint
+   // add 1 more if there's no / at the end of the directory path
+   strcpy(file_path, endpoint->response.resource.content);
+   int file_path_size = (int)strlen(endpoint->response.resource.content);
+   file_path[file_path_size] = '/'; // always / at the end
+   file_path[file_path_size + 1] = '\0';
+   if (*path_ptr != '\0')
+   {
+      strcat(file_path, path_ptr);
+      http_response->resource.file_path = file_path;
+      http_response->content_type = get_content_type_with_file_extension(http_response->resource.file_path);
+      stat_t st;
+      stat(file_path, &st);
+      if (stat(file_path, &st) == -1)
+      {
+         http_response->content_length = -1;
+      }
+      else
+      {
+         http_response->content_length = (int)st.st_size;
+      }
+   }
+   else
+   {
+      http_response->content_length = -1;
+   }
+}
+
+void http_response_build_error(http_response_t *http_response)
+{
+   // http_response->content_length = error_response.content_length;
+   // http_response->content_type = error_response.content_type;
+   // http_response->headers = error_response.headers;
+   // http_response->resource = error_response.resource;
+   // http_response->status = error_response.status;
+   // http_response->type = error_response.type;
+   memcpy(http_response, &error_response, sizeof(http_response_t));
+}
+
+void construct_response(int client_socket, http_request_t *http_request)
+{
+   endpoint_t *endpoint = get_endpoint(http_tree, http_request->path);
+   if (endpoint == NULL)
+   {
+      printf("No endpoint for path: %s \n", http_request->path);
+      return;
+   }
+
+   http_response_t http_response;
+   http_response.status = endpoint->response.status;
+   http_response.content_type = endpoint->response.content_type;
+
+   char response_content_buffer[MAX_RESPONSE_SIZE];
+   memset(response_content_buffer, 0, MAX_RESPONSE_SIZE);
+
+   switch (endpoint->response.type)
+   {
+   case ET_FILE:
+      http_response_build_type_et_file(&http_response, endpoint);
+      break;
+
+   case ET_TEXT:
+      http_response_build_type_et_text(&http_response, endpoint, response_content_buffer);
+      break;
+
+   case ET_FUNC:
+      http_response_build_type_et_func(&http_response, http_request, endpoint, response_content_buffer);
+      break;
+
+   case ET_DIRECTORY:
+      http_response_build_type_et_directory(&http_response, http_request, endpoint);
+      break;
+
+   default:
+      http_response_build_error(&http_response);
+      break;
+   }
+
+   char response_buffer[MAX_RESPONSE_SIZE] = "HTTP/1.1 ";
+
+   char status_code[6];
+   sprintf(status_code, "%d\r\n", http_response.status);
+   strcat(response_buffer, status_code);
+
+   ll_node_t *header_node = http_response.headers;
+   while (header_node != NULL)
+   {
+      header_t *header = header_node->element;
+      strcat(response_buffer, header->name);
+      strcat(response_buffer, ": ");
+      strcat(response_buffer, header->value);
+      strcat(response_buffer, "\r\n");
+      header_node = header_node->next;
+   }
+
+   if (http_response.content_length > 0)
+   {
+      char *content_type = get_content_type(http_response.content_type);
+      strcat(response_buffer, "Content-Type: ");
+      strcat(response_buffer, content_type);
+      strcat(response_buffer, "\r\n");
+
+      char content_length_buffer[7];
+      sprintf(content_length_buffer, "%d", http_response.content_length);
+      strcat(response_buffer, "Content-Length: ");
+      strcat(response_buffer, content_length_buffer);
+      strcat(response_buffer, "\r\n");
+   }
+
+   strcat(response_buffer, "\r\n");
+
+   printf("-----------------\n%s\n-----------------\n", response_buffer);
+
+   switch (endpoint->response.type)
+   {
+   case ET_FILE:
+      http_response_build_type_et_file(&http_response, endpoint);
+      break;
+
+   case ET_TEXT:
+      strcat(response_buffer, response_content_buffer);
+      (int)SSL_write(ssl, response_buffer, strlen(response_buffer));
+      break;
+
+   case ET_FUNC:
+      strcat(response_buffer, response_content_buffer);
+      (int)SSL_write(ssl, response_buffer, strlen(response_buffer));
+      break;
+
+   case ET_DIRECTORY:
+      break;
+
+   default:
+      break;
+   }
+
+   // int write_size = -1;
+   // if (tls)
+   // {
+   //    if (http_response.content_length > 0 && (endpoint->response.type == ET_FILE || endpoint->response.type == ET_DIRECTORY))
+   //    {
+   //       if (strcmp(content_type_str, "Content-Type: image/x-icon\r\n\r\n") == 0 || strcmp(content_type_str, "Content-Type: image/png\r\n\r\n") == 0)
+   //       {
+   //          char buf[http_response.content_length + strlen(response) + 1];
+   //          memset(buf, 0, http_response.content_length + strlen(response) + 1);
+   //          strcpy(buf, response);
+   //          if (read_file(buf, http_request->path) != -1)
+   //          {
+   //             strcat(response, buf);
+   //             write_size = (int)SSL_write(ssl, buf, strlen(response) + http_response.content_length);
+   //          }
+   //          else
+   //          {
+   //             printf("Error reading file\n");
+   //          }
+   //       }
+   //       else
+   //       {
+   //          int response_length = strlen(response);
+   //          if (response_length + http_response.content_length < MAX_RESPONSE_SIZE && http_response.content_length <= MAX_FILE_READ_SIZE)
+   //          {
+   //             char buf[http_response.content_length + 1];
+   //             memset(buf, 0, http_response.content_length);
+
+   //             if (read_file(buf, http_request->path) != -1)
+   //             {
+   //                strcat(response, buf);
+   //                write_size = (int)SSL_write(ssl, response, response_length + http_response.content_length);
+   //             }
+   //             else
+   //             {
+   //                printf("Error reading file\n");
+   //             }
+   //          }
+   //          else
+   //          {
+   //             write_size = (int)SSL_write(ssl, response, response_length);
+   //             char buf[MAX_FILE_READ_SIZE];
+   //             memset(buf, 0, MAX_FILE_READ_SIZE);
+   //             int read_size;
+   //             int fd = open(http_request->path, O_RDONLY);
+   //             if (fd != -1)
+   //             {
+   //                int block = 0;
+   //                while ((read_size = read_file_block(buf, fd, block)) > 0)
+   //                {
+   //                   write_size = (int)SSL_write(ssl, buf, strlen(buf));
+   //                   block++;
+   //                   memset(buf, 0, MAX_FILE_READ_SIZE);
+   //                }
+   //                close(fd);
+   //             }
+   //          }
+   //       }
+   //    }
+   //    else
+   //    {
+   //       write_size = (int)SSL_write(ssl, response, strlen(response));
+   //    }
+   // }
+   // else
+   // {
+   //    write_size = (int)write(client_socket, response, strlen(response));
+   // }
+   // if (write_size < (int)strlen(response))
+   // {
+   //    printf("Error while sending response\n");
+   //    write_log("Error while sending response\n");
+   // }
 }
 
 int http_request_parse_request_line(http_request_t *http_request, char **request_ptr)

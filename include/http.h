@@ -18,6 +18,8 @@
 #include "http_tree.h"
 #include "logger.h"
 #include "vars.h"
+#include "http_status.h"
+#include "content_type.h"
 
 // #ifdef SSL
 #include "ssl.h"
@@ -38,8 +40,6 @@ typedef struct
    char *value;
 } header_t;
 
-typedef char *(*resource_function)(char *);
-
 typedef struct http_request_s
 {
    char *method;
@@ -50,6 +50,23 @@ typedef struct http_request_s
    char *body;
    int content_length;
 } http_request_t;
+
+typedef union
+{
+   char *file_path;
+   char *content;
+} response_resource_u;
+
+typedef struct http_response_s
+{
+   response_resource_u resource;
+   ll_node_t *headers;
+   int content_length;
+   content_type_e content_type;
+   http_status_e status;
+} http_response_t;
+
+typedef char *(*resource_function)(http_request_t *);
 
 void sigint_handler(int code);
 void construct_response(int client_socket, http_request_t *http_request);

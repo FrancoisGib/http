@@ -19,7 +19,7 @@ const char *get_endpoint_type(endpoint_type_e type)
    }
 }
 
-const char *get_content_type_with_file_extension(char *path)
+content_type_e get_content_type_with_file_extension(char *path)
 {
    content_type_e content_type = NULL_CONTENT;
    printf("get_content_type_with_file_extension : %s\n", path);
@@ -64,7 +64,7 @@ const char *get_content_type_with_file_extension(char *path)
          content_type = IMAGE_SVG_XML;
       }
    }
-   return get_content_type(content_type);
+   return content_type;
 }
 
 const char *get_content_type(content_type_e content_type)
