@@ -6,13 +6,6 @@ extern tree_t *http_tree;
 extern response_t error_response;
 extern int tls;
 
-void signal_handler2(int signum)
-{
-   printf("Received signal %d, shutting down gracefully...\n", signum);
-   // Ici, vous pouvez fermer vos connexions et libérer des ressources.
-   exit(0);
-}
-
 char *test_function(char *content)
 {
    char *str = malloc(strlen("<p>test</p>") + 1);
