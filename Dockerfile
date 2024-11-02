@@ -5,4 +5,6 @@ WORKDIR /app
 COPY http ./
 COPY src ./src
 
-ENTRYPOINT ["./http", "8080"]
+COPY cert ./cert
+
+CMD ["./http", "8080"]

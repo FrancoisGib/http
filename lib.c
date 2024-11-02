@@ -17,8 +17,9 @@ int read_file(char buffer[1024], char *file_path)
    if (!S_ISDIR(st.st_mode) && access(file_path, R_OK) == 0)
    {
       FILE *file = fopen(file_path, "r");
-      return (int)fread(buffer, 1, 1024, file);
+      int size = (int)fread(buffer, 1, 1024, file);
       fclose(file);
+      return size;
    }
    return -1;
 }

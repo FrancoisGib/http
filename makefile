@@ -5,6 +5,8 @@ CFLAGS = -Wall -Wextra -std=c11 -Wpedantic \
           -Wredundant-decls -Wnested-externs -Wmissing-include-dirs \
 			 -Wjump-misses-init -Wlogical-op -O3 -D_POSIX_C_SOURCE=200112L
 
+LFLAGS = -lssl -lcrypto
+
 OBJECTS = lib.o \
 			 linked_list.o \
           tree.o \
@@ -24,10 +26,10 @@ dir:
 	$(CC) $(CFLAGS) -c $< -o $(DIR)/$@
 
 http: dir $(OBJECTS)
-	$(CC) $(CFLAGS) -o http main.c $(OBJECTS_DIR) -lssl -lcrypto
+	$(CC) $(CFLAGS) -o http main.c $(OBJECTS_DIR) $(LFLAGS)
 
-docker-image: http.o $(OBJECTS)
-	$(CC) --static $(CFLAGS) -o http main.c $(OBJECTS_DIR)
+docker-image: dir $(OBJECTS)
+	gcc -o http main.c $(OBJECTS_DIR) -L/usr/local/openssl/lib -I/usr/local/openssl/include $(LFLAGS) -static
 	docker build -t http-server .
 
 clean:

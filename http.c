@@ -46,8 +46,8 @@ void construct_response(int client_socket, http_request_t *http_request)
    }
 
    int content_length = 0;
-   char buffer[1024];
-   memset(buffer, 0, 1024);
+   char buffer[MAX_RESPONSE_SIZE];
+   memset(buffer, 0, MAX_RESPONSE_SIZE);
    if (endpoint->response.type == ET_FILE)
    {
       content_length = read_file(buffer, endpoint->response.resource.content);
@@ -68,16 +68,26 @@ void construct_response(int client_socket, http_request_t *http_request)
    else if (endpoint->response.type == ET_DIRECTORY)
    {
       char *path_ptr = http_request->path;
-      while (strncmp(path_ptr, endpoint->path, strlen(endpoint->path)) != 0)
+      int size = strlen(path_ptr);
+      while (size > 0 && strcmp(path_ptr, endpoint->path) != 0)
       {
          path_ptr++;
+         size--;
       }
       path_ptr += strlen(endpoint->path) + 1;                                             /* pass the \0 made by get_endpoint */
       char file_path[strlen(path_ptr) + strlen(endpoint->response.resource.content) + 2]; // add 1 more if there's no / at the end of the directory path
       strcpy(file_path, endpoint->response.resource.content);
-      file_path[strlen(file_path)] = '/'; // always / at the end
-      strcat(file_path, path_ptr);
-      content_length = read_file(buffer, file_path);
+      int file_path_size = (int)strlen(endpoint->response.resource.content);
+      file_path[file_path_size] = '/'; // always / at the end
+      if (*path_ptr != '\0')
+      {
+         strcat(file_path, path_ptr);
+         content_length = read_file(buffer, file_path);
+      }
+      else
+      {
+         content_length = -1;
+      }
    }
 
    char content_type_str[64] = "Content-Type: ";
@@ -160,7 +170,6 @@ int http_request_parse_request_line(http_request_t *http_request, char **request
    else
    {
       http_request->path = strdup(http_request->path);
-      printf("path %s\n", http_request->path);
    }
 
    http_request->http_version = strtok_r(request, "\n", &request);
@@ -261,7 +270,6 @@ int ssl_read(int client_socket, char buffer[MAX_REQUEST_SIZE])
          ERR_print_errors_fp(stderr);
          return -1;
       };
-      printf("size = %d\n", size);
       return size;
    }
 }

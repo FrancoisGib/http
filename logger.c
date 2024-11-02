@@ -34,7 +34,6 @@ void http_request_write_log(http_request_t *http_request)
 {
    int method_length = strlen(http_request->method);
    int path_length = strlen(http_request->path);
-   printf("pp %d %s\n", path_length, http_request->path);
    int http_version_length = strlen(http_request->http_version);
    int additional_length = strlen("METHOD: \nPATH: \nHTTP VERSION: \nHEADERS: [\n]\nBODY:\n");
    int buffer_size = method_length + 1 + path_length + 1 + http_version_length + 1 + http_request->content_length + 1 + http_request->headers_length + additional_length;

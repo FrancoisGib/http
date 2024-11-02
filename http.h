@@ -19,11 +19,11 @@
 #include "logger.h"
 #include "ssl.h"
 
-#define MAX_RESPONSE_SIZE 2048
+#define MAX_RESPONSE_SIZE 1024
 #define MAX_REQUEST_SIZE 1024
 
 #ifndef NB_PROCESSES
-#define NB_PROCESSES 1
+#define NB_PROCESSES 10
 #endif
 
 typedef struct sockaddr_in sockaddr_in_t;
