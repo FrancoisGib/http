@@ -34,10 +34,10 @@ void http_request_write_log(http_request_t *http_request)
 {
    int method_length = strlen(http_request->method);
    int path_length = strlen(http_request->path);
+   printf("pp %d %s\n", path_length, http_request->path);
    int http_version_length = strlen(http_request->http_version);
-   int content_length = strlen(http_request->body);
    int additional_length = strlen("METHOD: \nPATH: \nHTTP VERSION: \nHEADERS: [\n]\nBODY:\n");
-   int buffer_size = method_length + 1 + path_length + 1 + http_version_length + 1 + content_length + 1 + http_request->headers_length + additional_length;
+   int buffer_size = method_length + 1 + path_length + 1 + http_version_length + 1 + http_request->content_length + 1 + http_request->headers_length + additional_length;
    char buffer[buffer_size + 1];
    memset(buffer, 0, buffer_size);
    sprintf(buffer, "METHOD: %s\nPATH: %s\nHTTP VERSION: %s\nHEADERS: [\n", http_request->method, http_request->path, http_request->http_version);
@@ -61,7 +61,7 @@ void http_request_write_log(http_request_t *http_request)
    }
    else
    {
-      strcat(buffer, "]\n");
+      strcat(buffer, "]");
    }
    printf("%s\n-----------------\n", buffer);
    write_log(buffer);

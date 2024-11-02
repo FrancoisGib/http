@@ -10,16 +10,20 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <stdbool.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 
 #include "lib.h"
 #include "http_tree.h"
 #include "logger.h"
+#include "ssl.h"
 
 #define MAX_RESPONSE_SIZE 2048
 #define MAX_REQUEST_SIZE 1024
 
 #ifndef NB_PROCESSES
-#define NB_PROCESSES 10
+#define NB_PROCESSES 1
 #endif
 
 typedef struct sockaddr_in sockaddr_in_t;
@@ -51,9 +55,7 @@ typedef struct http_request_s
 } http_request_t;
 
 void sigint_handler(int code);
-int read_file(char buffer[1024], char *file_path);
 void construct_response(int client_socket, http_request_t *http_request);
-void send_error_response(int client_socket);
 int http_request_parse_request_line(http_request_t *http_request, char **request_ptr);
 int http_request_parse_headers(http_request_t *http_request, char **request_ptr);
 int http_request_parse_body(http_request_t *http_request, char **request_ptr);

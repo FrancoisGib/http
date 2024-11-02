@@ -70,6 +70,7 @@ endpoint_t *get_endpoint(tree_t *tree, char *path)
    if (*path == '/') /* delete the / at the beginning */
    {
       path++;
+      printf("path cut %s\n", path);
    }
    endpoint_t *tree_endpoint = (endpoint_t *)tree->element;
    if (strlen(path) == 0 || strcmp("/", path) == 0)

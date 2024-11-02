@@ -4,6 +4,7 @@ extern int sock;
 extern int nb_processes;
 extern tree_t *http_tree;
 extern response_t error_response;
+extern int tls;
 
 char *test_function(char *content)
 {
@@ -36,14 +37,14 @@ int main(int argc, char **argv)
        {"/hostname", {{.content = hostname}, ET_TEXT, TEXT, HTTP_STATUS_OK}},
        {"/", {{.content = "src/index.html"}, ET_FILE, HTML, HTTP_STATUS_OK}},
        {"/test", {{.function = test_function}, ET_FUNC, HTML, HTTP_STATUS_CREATED}},
-       {"/public", {{.content = "src/public/"}, ET_DIRECTORY, NULL_CONTENT, HTTP_STATUS_OK}}};
+       {"/public", {{.content = "src/public"}, ET_DIRECTORY, NULL_CONTENT, HTTP_STATUS_OK}}};
 
    error_response = (response_t){{.content = "Error"}, ET_TEXT, TEXT, HTTP_STATUS_OK};
 
+   tls = 1;
    http_tree = build_http_tree(endpoints, sizeof(endpoints) / sizeof(endpoint_t));
    print_http_tree(http_tree, 0);
    printf("Starting server on port %d\n", port);
    start_server(port);
-
    return 0;
 }

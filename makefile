@@ -10,6 +10,7 @@ OBJECTS = lib.o \
           tree.o \
           http_tree.o \
 			 logger.o \
+			 ssl.o \
 			 http.o
 
 DIR = objects
@@ -23,7 +24,7 @@ dir:
 	$(CC) $(CFLAGS) -c $< -o $(DIR)/$@
 
 http: dir $(OBJECTS)
-	$(CC) $(CFLAGS) -o http main.c $(OBJECTS_DIR)
+	$(CC) $(CFLAGS) -o http main.c $(OBJECTS_DIR) -lssl -lcrypto
 
 docker-image: http.o $(OBJECTS)
 	$(CC) --static $(CFLAGS) -o http main.c $(OBJECTS_DIR)
