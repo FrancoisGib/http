@@ -21,9 +21,11 @@ int main(int argc, char **argv)
 
    const endpoint_t endpoints[] = {
        {"/hostname", {{.content = hostname}, ET_TEXT, TEXT, HTTP_STATUS_OK}},
-       {"/", {{.content = "src/index.html"}, ET_FILE, HTML, HTTP_STATUS_OK}},
+       {"/", {{.content = "examples/index.html"}, ET_FILE, HTML, HTTP_STATUS_OK}},
        {"/test", {{.function = test_function}, ET_FUNC, HTML, HTTP_STATUS_CREATED}},
-       {"/public", {{.content = "src/public"}, ET_DIRECTORY, NULL_CONTENT, HTTP_STATUS_OK}}};
+       {"/public", {{.content = "examples/public"}, ET_DIRECTORY, NULL_CONTENT, HTTP_STATUS_OK}},
+       {"/build", {{.content = "examples/app/build"}, ET_DIRECTORY, NULL_CONTENT, HTTP_STATUS_OK}},
+   };
 
    error_response = (response_t){{.content = "Error"}, ET_TEXT, TEXT, HTTP_STATUS_OK};
 
@@ -59,6 +61,7 @@ In the main example, the tree structure is:
     └── /hostname serving machine hostname
     └── /test serving "<p>test</p>" (returned by a function taking the content of the request, so it can be set dynamically)
     └── /public serving examples/public folder
+    └── /build serving a react app in examples/app/build folder
 ```
 
 
