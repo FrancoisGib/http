@@ -44,7 +44,9 @@ int main(int argc, char **argv)
        {"/hostname", {{.content = hostname}, ET_TEXT, TEXT, HTTP_STATUS_OK}},
        {"/", {{.content = "examples/index.html"}, ET_FILE, HTML, HTTP_STATUS_OK}},
        {"/test", {{.function = test_function}, ET_FUNC, HTML, HTTP_STATUS_CREATED}},
-       {"/public", {{.content = "examples/public"}, ET_DIRECTORY, NULL_CONTENT, HTTP_STATUS_OK}}};
+       {"/public", {{.content = "examples/public"}, ET_DIRECTORY, NULL_CONTENT, HTTP_STATUS_OK}},
+       {"/build", {{.content = "examples/app/build"}, ET_DIRECTORY, NULL_CONTENT, HTTP_STATUS_OK}},
+   };
 
    error_response = (response_t){{.content = "Error"}, ET_TEXT, TEXT, HTTP_STATUS_OK};
 

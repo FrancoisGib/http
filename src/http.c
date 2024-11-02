@@ -50,7 +50,16 @@ void construct_response(int client_socket, http_request_t *http_request)
    memset(buffer, 0, MAX_RESPONSE_SIZE);
    if (endpoint->response.type == ET_FILE)
    {
-      content_length = read_file(buffer, endpoint->response.resource.content);
+      stat_t st;
+      if (stat(endpoint->response.resource.content, &st) == -1)
+      {
+         content_length = -1;
+      }
+      else
+      {
+         content_length = (int)st.st_size;
+      }
+      // content_length = read_file(buffer, endpoint->response.resource.content);
    }
    else if (endpoint->response.type == ET_TEXT)
    {
@@ -74,15 +83,30 @@ void construct_response(int client_socket, http_request_t *http_request)
          path_ptr++;
          size--;
       }
-      path_ptr += strlen(endpoint->path) + 1;                                             /* pass the \0 made by get_endpoint */
-      char file_path[strlen(path_ptr) + strlen(endpoint->response.resource.content) + 2]; // add 1 more if there's no / at the end of the directory path
+      path_ptr += strlen(endpoint->path) + 1;
+      char *file_path = malloc(strlen(path_ptr) + strlen(endpoint->response.resource.content) + 2); /* pass the \0 made by get_endpoint */
+                                                                                                    // add 1 more if there's no / at the end of the directory path
       strcpy(file_path, endpoint->response.resource.content);
       int file_path_size = (int)strlen(endpoint->response.resource.content);
       file_path[file_path_size] = '/'; // always / at the end
+      file_path[file_path_size + 1] = '\0';
       if (*path_ptr != '\0')
       {
          strcat(file_path, path_ptr);
-         content_length = read_file(buffer, file_path);
+         http_request->path = file_path;
+         // endpoint->response.type = ET_FILE;
+         stat_t st;
+         stat(file_path, &st);
+         if (stat(file_path, &st) == -1)
+         {
+            content_length = -1;
+         }
+         else
+         {
+            content_length = (int)st.st_size;
+         }
+         // content_length =
+         //     content_length = read_file(buffer, file_path);
       }
       else
       {
@@ -111,7 +135,7 @@ void construct_response(int client_socket, http_request_t *http_request)
    }
    strcat(content_type_str, "\r\n\r\n");
 
-   char content_length_buffer[5];
+   char content_length_buffer[7];
    sprintf(content_length_buffer, "%d", content_length);
 
    char content_length_str[32] = "Content-Length: ";
@@ -134,7 +158,38 @@ void construct_response(int client_socket, http_request_t *http_request)
    int write_size = -1;
    if (tls)
    {
-      write_size = (int)SSL_write(ssl, response, strlen(response));
+
+      if (content_length > 0 && (endpoint->response.type == ET_FILE || endpoint->response.type == ET_DIRECTORY))
+      {
+         if (strcmp(content_type_str, "Content-Type: image/x-icon\r\n\r\n") == 0 || strcmp(content_type_str, "Content-Type: image/png\r\n\r\n") == 0)
+         {
+            printf("conten %s\n", content_type_str);
+            char buf[content_length + 1 + strlen(response)];
+            strcpy(buf, response);
+            buf[strlen(response)] = '\0';
+            printf("file path %s\n", http_request->path);
+            int block = 0;
+            read_file(&buf[strlen(response)], http_request->path);
+            printf("ssl \n");
+            write_size = (int)SSL_write(ssl, buf, strlen(response) + content_length);
+         }
+         else
+         {
+            write_size = (int)SSL_write(ssl, response, strlen(response));
+            memset(buffer, 0, MAX_FILE_READ_SIZE);
+            int read_size;
+            int fd = open(http_request->path, O_RDONLY);
+            printf("file path %s\n", http_request->path);
+            int block = 0;
+            while ((read_size = read_file_block(buffer, fd, block)) > 0)
+            {
+               write_size = (int)SSL_write(ssl, buffer, strlen(buffer));
+               block++;
+               memset(buffer, 0, MAX_FILE_READ_SIZE);
+            }
+            close(fd);
+         }
+      }
    }
    else
    {
@@ -222,10 +277,29 @@ int http_request_parse_headers(http_request_t *http_request, char **request_ptr)
       {
          http_request->content_length = (int)strtol(header->value, NULL, 10);
       }
+      else if (strcmp(header_name, "Referer") == 0)
+      {
+         char *split = strchr(header->value, '/');
+         split += 2;
+         split = strchr(split, '/');
+         split++;
+         char *ok = search_last_occurence(split, '/');
+         if (split != NULL)
+         {
+            int size = ok - split;
+            char *new_path = malloc(size + strlen(http_request->path) + 1);
+            strncpy(new_path, split, size);
+            new_path[size] = '\0';
+            strcat(new_path, http_request->path);
+            free(http_request->path);
+            http_request->path = new_path;
+         }
+         printf("path %s\n", http_request->path);
+      }
       http_request->headers = insert_in_head(http_request->headers, header);
       http_request->headers_length += strlen(header->name) + strlen(header->value) + 4; // +1 to add \n\t and ": " later
    }
-   *request_ptr = body;
+   request_ptr = body;
    return *body != '\0'; // 1 if this is not the end of the headers part, 0 if this is the body or empty.
 }
 
@@ -355,7 +429,7 @@ void accept_connection(void)
          http_request.content_length = 0;
          http_request.headers_length = 0;
          char **request_ptr = &buffer_ptr;
-
+         printf("%s\n", buffer);
          if (is_first_request == 1)
          {
             if (http_request_parse_request_line(&http_request, request_ptr) == -1)

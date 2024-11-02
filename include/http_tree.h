@@ -2,6 +2,7 @@
 #define HTTP_TREE_H
 
 #include "tree.h"
+#include "lib.h"
 
 typedef enum
 {
@@ -29,6 +30,9 @@ typedef enum
    JAVASCRIPT,
    TEXT,
    HTML,
+   IMAGE_PNG,
+   IMAGE_X_ICON,
+   IMAGE_SVG_XML,
    NULL_CONTENT
 } content_type_e;
 

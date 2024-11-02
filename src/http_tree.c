@@ -22,8 +22,13 @@ const char *get_endpoint_type(endpoint_type_e type)
 const char *get_content_type_with_file_extension(char *path)
 {
    content_type_e content_type = NULL_CONTENT;
-   char *extension = path;
-   strtok_r(path, ".", &extension);
+   printf("get_content_type_with_file_extension : %s\n", path);
+   char *extension = search_last_occurence(path, '.');
+   if (extension != NULL)
+   {
+      extension++;
+   }
+   printf("%s\n", extension);
    if (extension != NULL)
    {
       if (strcmp(extension, "js") == 0)
@@ -42,6 +47,22 @@ const char *get_content_type_with_file_extension(char *path)
       {
          content_type = TEXT;
       }
+      else if (strcmp(extension, "png") == 0)
+      {
+         content_type = IMAGE_PNG;
+      }
+      else if (strcmp(extension, "ico") == 0)
+      {
+         content_type = IMAGE_X_ICON;
+      }
+      else if (strcmp(extension, "svg") == 0)
+      {
+         content_type = IMAGE_SVG_XML;
+      }
+      else if (strcmp(extension, "xml") == 0)
+      {
+         content_type = IMAGE_SVG_XML;
+      }
    }
    return get_content_type(content_type);
 }
@@ -58,6 +79,12 @@ const char *get_content_type(content_type_e content_type)
       return "text/html";
    case TEXT:
       return "text/plain";
+   case IMAGE_PNG:
+      return "image/png";
+   case IMAGE_X_ICON:
+      return "image/x-icon";
+   case IMAGE_SVG_XML:
+      return "image/svg+xml";
    case NULL_CONTENT:
       return "";
    default:
@@ -112,7 +139,7 @@ void add_endpoint(tree_t *tree, const char *path, response_t response)
    endpoint_t *tree_endpoint = (endpoint_t *)tree->element;
    if (*path == '/') /* delete the / at the beginning */
    {
-      add_endpoint(tree, &path[1], response);
+      add_endpoint(tree, path + 1, response);
       return;
    }
    if ((strlen(path) == 0 || strcmp("/", path) == 0) && (strcmp("/", tree_endpoint->path) == 0 || strcmp("", tree_endpoint->path) == 0)) // for initialization (if overriding / path)
@@ -120,10 +147,8 @@ void add_endpoint(tree_t *tree, const char *path, response_t response)
       tree_endpoint->response = response;
       return;
    }
-
    char *rest = path;
    char *first_part = strtok_r(rest, "/", &rest);
-
    if (strcmp(first_part, tree_endpoint->path) == 0 && *rest == '\0')
    {
       tree_endpoint->response = response;
@@ -159,10 +184,12 @@ void add_endpoint(tree_t *tree, const char *path, response_t response)
       {
          endpoint_t *endpoint = malloc(sizeof(endpoint_t));
          endpoint->path = first_part;
+         printf("%s\n", endpoint->path);
          child = add_child(tree, (void *)endpoint);
          if (*rest != '\0')
          {
-            endpoint->response = (response_t){.resource.content = "", .type = ET_PATH, .status = HTTP_STATUS_NOT_FOUND, .content_type = NULL_CONTENT};
+            if (endpoint->response.type == ET_PATH)
+               endpoint->response = (response_t){.resource.content = "", .status = HTTP_STATUS_NOT_FOUND, .content_type = NULL_CONTENT};
             add_endpoint(child, rest, response);
          }
          else
@@ -222,7 +249,8 @@ tree_t *build_http_tree(const endpoint_t endpoints[], int n)
    for (int i = 0; i < n; i++)
    {
       endpoint_t endpoint = endpoints[i];
-      add_endpoint(tree, endpoint.path, endpoint.response);
+      char *path = strdup(endpoint.path);
+      add_endpoint(tree, path, endpoint.response);
    }
    return tree;
 }

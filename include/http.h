@@ -18,13 +18,7 @@
 #include "http_tree.h"
 #include "logger.h"
 #include "ssl.h"
-
-#define MAX_RESPONSE_SIZE 1024
-#define MAX_REQUEST_SIZE 1024
-
-#ifndef NB_PROCESSES
-#define NB_PROCESSES 10
-#endif
+#include "vars.h"
 
 typedef struct sockaddr_in sockaddr_in_t;
 
