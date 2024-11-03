@@ -1,10 +1,23 @@
-FROM scratch
+FROM ubuntu:latest AS build
 
 WORKDIR /app
 
-COPY http ./
-COPY examples ./examples
+RUN apt-get update && apt-get install -y \
+   build-essential \
+   libssl-dev \
+   && rm -rf /var/lib/apt/lists/*
 
+COPY include ./include
+COPY src ./src
+COPY makefile ./
+RUN make http-static
+
+FROM alpine
+
+WORKDIR /app
+
+COPY --from=build /app/http ./
+COPY examples ./examples
 COPY cert ./cert
 
 CMD ["./http", "8080"]

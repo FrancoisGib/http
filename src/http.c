@@ -252,47 +252,34 @@ void http_response_build_by_type(http_response_t *http_response, endpoint_t *end
    }
 }
 
-void construct_response(int client_socket, http_request_t *http_request)
+void construct_response(int client_socket, http_req_res_t *http_req_res)
 {
+   http_request_t *http_request = http_req_res->request;
+   http_response_t *http_response = http_req_res->response;
    endpoint_t *endpoint = get_endpoint(http_tree, http_request->path);
    if (endpoint == NULL)
    {
       endpoint = error_endpoint;
    }
-
-   http_response_t http_response;
-   http_response.headers = NULL;
    char response_content_buffer[MAX_RESPONSE_SIZE];
    memset(response_content_buffer, 0, MAX_RESPONSE_SIZE);
-   http_response_build_by_type(&http_response, endpoint, response_content_buffer, http_request);
+   http_response_build_by_type(http_response, endpoint, response_content_buffer, http_request);
 
    char response_buffer[MAX_RESPONSE_SIZE] = "HTTP/1.1 ";
 
    char status_code[6];
-   sprintf(status_code, "%d\r\n", http_response.status);
+   sprintf(status_code, "%d\r\n", http_response->status);
    strcat(response_buffer, status_code);
 
-   // Uncomment to copy all the request headers into the response
-   // ll_node_t *header_node = http_request->headers;
-   // while (header_node != NULL)
-   // {
-   //    header_t *header = header_node->element;
-   //    strcat(response_buffer, header->name);
-   //    strcat(response_buffer, ": ");
-   //    strcat(response_buffer, header->value);
-   //    strcat(response_buffer, "\r\n");
-   //    header_node = header_node->next;
-   // }
-
-   if (http_response.content_length > 0)
+   if (http_response->content_length > 0)
    {
-      char *content_type = get_content_type(http_response.content_type);
+      char *content_type = get_content_type(http_response->content_type);
       strcat(response_buffer, "Content-Type: ");
       strcat(response_buffer, content_type);
       strcat(response_buffer, "\r\n");
 
       char content_length_buffer[11];
-      sprintf(content_length_buffer, "%d", http_response.content_length);
+      sprintf(content_length_buffer, "%d", http_response->content_length);
       strcat(response_buffer, "Content-Length: ");
       strcat(response_buffer, content_length_buffer);
       strcat(response_buffer, "\r\n");
@@ -304,20 +291,20 @@ void construct_response(int client_socket, http_request_t *http_request)
 
    int written_size;
    int response_length = strlen(response_buffer);
-   switch (http_response.endpoint_type)
+   switch (http_response->endpoint_type)
    {
    case ET_FILE:
-      http_response_send_et_file(&http_response, response_buffer, client_socket);
+      http_response_send_et_file(http_response, response_buffer, client_socket);
       break;
 
    case ET_DIRECTORY:
-      http_response_send_et_file(&http_response, response_buffer, client_socket);
-      free(http_response.resource.file_path);
+      http_response_send_et_file(http_response, response_buffer, client_socket);
+      free(http_response->resource.file_path);
       break;
 
    case ET_TEXT:
       strcat(response_buffer, response_content_buffer);
-      written_size = WRITE(SOCK, response_buffer, response_length + http_response.content_length);
+      written_size = WRITE(SOCK, response_buffer, response_length + http_response->content_length);
       if (written_size != response_length)
       {
          printf("Error sending file\n");
@@ -326,7 +313,7 @@ void construct_response(int client_socket, http_request_t *http_request)
 
    case ET_FUNC:
       strcat(response_buffer, response_content_buffer);
-      written_size = WRITE(SOCK, response_buffer, response_length + http_response.content_length);
+      written_size = WRITE(SOCK, response_buffer, response_length + http_response->content_length);
       if (written_size != response_length)
       {
          printf("Error sending content\n");
@@ -336,156 +323,28 @@ void construct_response(int client_socket, http_request_t *http_request)
    default:
       break;
    }
-   free_http_response(&http_response);
 }
 
-int http_request_parse_request_line(http_request_t *http_request, char **request_ptr)
+void free_http_request(http_request_t *http_request)
 {
-   char *request = *request_ptr;
-   http_request->method = strtok_r(request, " ", &request);
-   if (http_request->method == NULL)
+   if (http_request->content_length > 0)
    {
-      printf("Invalid request received");
-      return -1;
-   }
-   else
-   {
-      http_request->method = mstrdup(http_request->method);
-   }
-
-   http_request->path = strtok_r(request, " ", &request);
-   if (http_request->path == NULL)
-   {
-      printf("Invalid request received\n");
-      return -1;
-   }
-   else
-   {
-      http_request->path = mstrdup(http_request->path);
-   }
-
-   http_request->http_version = strtok_r(request, "\n", &request);
-   if (http_request->http_version == NULL)
-   {
-      printf("Invalid request received\n");
-      return -1;
-   }
-   else
-   {
-      http_request->http_version = mstrdup(http_request->http_version);
-   }
-   *request_ptr = request;
-   return 0;
-}
-
-int http_request_parse_headers(http_request_t *http_request, char **request_ptr)
-{
-   char *request = *request_ptr;
-   int request_size = strlen(request);
-
-   if (request_size == 0)
-   {
-      printf("Empty request\n");
-      return 1;
-   }
-
-   char *header_end = strstr(request, "\r\n\r\n");
-   if (!header_end)
-   {
-      printf("Invalid request\n");
-      return -1;
-   }
-
-   *header_end = '\0';
-   char *body = header_end + 4; // Body pointer after "\r\n\r\n"
-
-   char *header_str;
-   while ((header_str = strtok_r(request, "\r\n", &request)) != NULL)
-   {
-      header_t *header = malloc(sizeof(header_t));
-      char *header_name = strtok_r(header_str, ":", &header_str);
-      if (header_name && *header_str == ' ')
-      {
-         header_str++;
-      }
-      header->name = mstrdup(header_name);
-      header->value = mstrdup(header_str);
-      if (strcmp(header_name, "Content-Length") == 0)
-      {
-         http_request->content_length = (int)strtol(header->value, NULL, 10);
-      }
-      else if (strcmp(header_name, "Referer") == 0)
-      {
-         char *referee_path = strchr(header->value, '/');
-         referee_path += 2;
-         referee_path = strchr(referee_path, '/');
-         referee_path++;
-         char *referer_directory_end_pointer = search_last_occurence(referee_path, '/');
-         int diff_size = referer_directory_end_pointer - referee_path;
-         if (referee_path != NULL && diff_size > 0)
-         {
-            char *new_path = malloc(diff_size + strlen(http_request->path) + 1);
-            memset(new_path, 0, diff_size + strlen(http_request->path) + 1);
-            strncpy(new_path, referee_path, diff_size);
-            new_path[diff_size] = '\0';
-            if (strncmp(new_path, http_request->path + 1, strlen(new_path)) == 0)
-            {
-               strcat(new_path, http_request->path + strlen(new_path) + 1);
-            }
-            else
-            {
-               strcat(new_path, http_request->path);
-            }
-            free(http_request->path);
-            http_request->path = new_path;
-         }
-      }
-      http_request->headers = insert_in_head(http_request->headers, header);
-      http_request->headers_length += strlen(header->name) + strlen(header->value) + 4; // +1 to add \n\t and ": " later
-   }
-   *request_ptr = body;
-   return *body != '\0'; // 1 if this is not the end of the headers part, 0 if this is the body or empty.
-}
-
-int http_request_parse_body(http_request_t *http_request, char **request_ptr)
-{
-   char *request = *request_ptr;
-   int request_size = strlen(request);
-   int added_body_length = MIN(request_size, http_request->content_length);
-   if (http_request->body == NULL)
-   {
-      http_request->body = malloc(http_request->content_length + 1);
-      strncpy(http_request->body, request, added_body_length);
-      http_request->body[added_body_length] = '\0';
-   }
-   else
-   {
-      int body_size = strlen(http_request->body);
-      int remaining_body_size = http_request->content_length - body_size;
-      strncat(&http_request->body[body_size], request, remaining_body_size);
-   }
-   return added_body_length == http_request->content_length;
-}
-
-void free_http_request(http_request_t *request)
-{
-   if (request->content_length > 0)
-   {
-      free(request->body);
+      free(http_request->body);
    }
    ll_node_t *header_node;
-   while ((header_node = request->headers) != NULL)
+   while ((header_node = http_request->headers) != NULL)
    {
-      request->headers = request->headers->next;
+      http_request->headers = http_request->headers->next;
       header_t *header = (header_t *)header_node->element;
       free(header->name);
       free(header->value);
       free(header);
       free(header_node);
    }
-   free(request->path);
-   free(request->method);
-   free(request->http_version);
+   free(http_request->path);
+   free(http_request->method);
+   free(http_request->http_version);
+   free(http_request);
 }
 
 void free_http_response(http_response_t *http_response)
@@ -500,6 +359,17 @@ void free_http_response(http_response_t *http_response)
       free(header);
       free(header_node);
    }
+   free(http_response);
+}
+
+void *http_req_res_write_log_and_free(void *arg)
+{
+   http_req_res_t *http_req_res = (http_req_res_t *)arg;
+   http_request_write_log(http_req_res->request);
+   free_http_request(http_req_res->request);
+   free_http_response(http_req_res->response);
+   free(http_req_res);
+   return NULL;
 }
 
 void accept_connection(void)
@@ -520,22 +390,39 @@ void accept_connection(void)
       ssl = SSL_new(ctx);
       if (ssl == NULL || SSL_set_fd(ssl, client_socket) == 0)
       {
-         ERR_print_errors_fp(stderr);
+         printf("SSL: Error setting the client socket.\n");
+         // ERR_print_errors_fp(stderr);
          close(client_socket);
          continue; // Move to the next connection if SSL setup fails
       }
 
       if (SSL_accept(ssl) <= 0)
       {
-         ERR_print_errors_fp(stderr); // Output SSL errors
+         printf("SSL: Error with request or client sent http request.\n");
+         // ERR_print_errors_fp(stderr); // Output SSL errors
          SSL_free(ssl);
          ssl = NULL;
          close(client_socket);
          continue;
       }
 #endif
+
+      http_request_t *http_request = malloc(sizeof(http_request_t));
+      http_request->path = NULL;
+      http_request->method = NULL;
+      http_request->http_version = NULL;
+      http_request->body = NULL;
+      http_request->headers = NULL;
+      http_request->content_length = 0;
+      http_request->headers_length = 0;
+
+      http_response_t *http_response = malloc(sizeof(http_response_t));
+      http_response->headers = NULL;
+      http_req_res_t *http_req_res = malloc(sizeof(http_req_res_t));
+      http_req_res->request = http_request;
+      http_req_res->response = http_response;
+
       char buffer[MAX_REQUEST_SIZE];
-      http_request_t http_request;
       int is_first_request = 1;
       int is_incorrect_request = 0;
       int header_parsed = 0;
@@ -545,18 +432,11 @@ void accept_connection(void)
       {
          buffer[size] = '\0';
          char *buffer_ptr = buffer;
-         http_request.path = NULL;
-         http_request.method = NULL;
-         http_request.http_version = NULL;
-         http_request.body = NULL;
-         http_request.headers = NULL;
-         http_request.content_length = 0;
-         http_request.headers_length = 0;
          char **request_ptr = &buffer_ptr;
          printf("%s\n", buffer);
          if (is_first_request)
          {
-            if (http_request_parse_request_line(&http_request, request_ptr) == -1)
+            if (http_request_parse_request_line(http_request, request_ptr) == -1)
             {
                is_incorrect_request = 1;
                break;
@@ -564,7 +444,7 @@ void accept_connection(void)
             is_first_request = 0;
          }
 
-         int header_parsing_status = http_request_parse_headers(&http_request, request_ptr);
+         int header_parsing_status = http_request_parse_headers(http_request, request_ptr);
          if (!header_parsed && header_parsing_status == 1)
          {
             header_parsed = 1;
@@ -575,9 +455,9 @@ void accept_connection(void)
             break;
          }
 
-         if (http_request.content_length > 0)
+         if (http_request->content_length > 0)
          {
-            done = http_request_parse_body(&http_request, request_ptr);
+            done = http_request_parse_body(http_request, request_ptr);
          }
          else
          {
@@ -585,19 +465,20 @@ void accept_connection(void)
          }
          memset(buffer, 0, size);
       }
-      // pthread_t log_thread;
-      // pthread_create(&log_thread, NULL, http_request_write_log_wrapper, (void *)&http_request);
-      // pthread_detach(log_thread);
       if (size == -1 || is_incorrect_request)
       {
+         free_http_request(http_request);
+         free_http_response(http_response);
+         free(http_req_res);
          printf("Error with the request\n");
       }
       else
       {
-         construct_response(client_socket, &http_request);
-         http_request_write_log(&http_request);
+         construct_response(client_socket, http_req_res);
+         pthread_t log_thread;
+         pthread_create(&log_thread, NULL, http_req_res_write_log_and_free, (void *)http_req_res);
+         pthread_detach(log_thread);
       }
-      free_http_request(&http_request);
 #ifdef USE_SSL
       SSL_shutdown(ssl);
       SSL_free(ssl);
