@@ -5,17 +5,51 @@ int nb_processes = NB_PROCESSES;
 tree_t *http_tree;
 http_response_t error_response;
 pid_t parent_pid;
-int tls = 0;
+
+#ifdef USE_SSL
+#define SOCK ssl
+
 SSL_CTX *ctx = NULL;
 SSL *ssl = NULL;
+
+int ssl_read(SSL *_ssl, char buffer[MAX_REQUEST_SIZE], int buf_size)
+{
+   printf("read\n");
+   if (SSL_accept(ssl) <= 0)
+   {
+      printf("error\n");
+      // ERR_print_errors_fp(stderr);
+      return -1;
+   }
+   else
+   {
+      int size = 0;
+      if ((size = SSL_read(ssl, buffer, buf_size)) <= 0)
+      {
+         printf("error2\n");
+         // ERR_print_errors_fp(stderr);
+         return -1;
+      };
+      return size;
+   }
+}
+
+#define READ ssl_read
+#define WRITE SSL_write
+
+#else
+#define SOCK client_socket
+
+#define READ read
+#define WRITE write
+#endif
 
 void sigint_handler(int code)
 {
    printf("Process %d ended\n", getpid());
-   if (tls)
-   {
-      SSL_CTX_free(ctx);
-   }
+#ifdef USE_SSL
+   SSL_CTX_free(ctx);
+#endif
    if (sock != -1)
    {
       close(sock);
@@ -26,10 +60,9 @@ void sigint_handler(int code)
    }
    if (getpid() == parent_pid)
    {
-      if (tls)
-      {
-         printf("\nFreed SSL context");
-      }
+#ifdef USE_SSL
+      printf("\nFreed SSL context");
+#endif
       printf("\nClosed socket");
       printf("\nFreed http tree\n");
    }
@@ -320,6 +353,7 @@ void construct_response(int client_socket, http_request_t *http_request)
    }
 
    http_response_t http_response;
+   http_response.headers = NULL;
    http_response.status = endpoint->response.status;
    http_response.content_type = endpoint->response.content_type;
 
@@ -373,7 +407,7 @@ void construct_response(int client_socket, http_request_t *http_request)
       strcat(response_buffer, content_type);
       strcat(response_buffer, "\r\n");
 
-      char content_length_buffer[7];
+      char content_length_buffer[11];
       sprintf(content_length_buffer, "%d", http_response.content_length);
       strcat(response_buffer, "Content-Length: ");
       strcat(response_buffer, content_length_buffer);
@@ -384,6 +418,7 @@ void construct_response(int client_socket, http_request_t *http_request)
 
    printf("-----------------\n%s\n-----------------\n", response_buffer);
 
+   int written_size;
    switch (endpoint->response.type)
    {
    case ET_FILE:
@@ -392,12 +427,12 @@ void construct_response(int client_socket, http_request_t *http_request)
 
    case ET_TEXT:
       strcat(response_buffer, response_content_buffer);
-      (int)SSL_write(ssl, response_buffer, strlen(response_buffer));
+      written_size = WRITE(SOCK, response_buffer, strlen(response_buffer));
       break;
 
    case ET_FUNC:
       strcat(response_buffer, response_content_buffer);
-      (int)SSL_write(ssl, response_buffer, strlen(response_buffer));
+      written_size = WRITE(SOCK, response_buffer, strlen(response_buffer));
       break;
 
    case ET_DIRECTORY:
@@ -616,36 +651,24 @@ void *http_request_write_log_wrapper(void *http_request)
    return NULL;
 }
 
-int ssl_read(int client_socket, char buffer[MAX_REQUEST_SIZE])
-{
-   if (SSL_accept(ssl) <= 0)
-   {
-      // ERR_print_errors_fp(stderr);
-      return -1;
-   }
-   else
-   {
-      int size = 0;
-      if ((size = SSL_read(ssl, buffer, MAX_REQUEST_SIZE)) <= 0)
-      {
-         // ERR_print_errors_fp(stderr);
-         return -1;
-      };
-      return size;
-   }
-}
-
-int socket_read(int client_socket, char buffer[MAX_REQUEST_SIZE])
-{
-   if (tls)
-   {
-      return ssl_read(client_socket, buffer);
-   }
-   else
-   {
-      return read(client_socket, buffer, MAX_REQUEST_SIZE);
-   }
-}
+// int ssl_read(int client_socket, char buffer[MAX_REQUEST_SIZE])
+// {
+//    if (SSL_accept(ssl) <= 0)
+//    {
+//       // ERR_print_errors_fp(stderr);
+//       return -1;
+//    }
+//    else
+//    {
+//       int size = 0;
+//       if ((size = SSL_read(ssl, buffer, MAX_REQUEST_SIZE)) <= 0)
+//       {
+//          // ERR_print_errors_fp(stderr);
+//          return -1;
+//       };
+//       return size;
+//    }
+// }
 
 void free_http_request_args(http_request_t *request)
 {
@@ -682,21 +705,19 @@ void accept_connection(void)
          perror("Error accepting connection");
          exit(EXIT_FAILURE);
       }
-      if (tls)
+#ifdef USE_SSL
+      ssl = SSL_new(ctx);
+      if (ssl == NULL)
       {
-         ssl = SSL_new(ctx);
-         if (ssl == NULL)
-         {
-            printf("Error\n");
-            continue;
-         }
-         if (SSL_set_fd(ssl, client_socket) == 0)
-         {
-            printf("Error2\n");
-            continue;
-         }
+         printf("Error\n");
+         continue;
       }
-
+      if (SSL_set_fd(ssl, client_socket) == 0)
+      {
+         printf("Error2\n");
+         continue;
+      }
+#endif
       char buffer[MAX_REQUEST_SIZE];
       http_request_t http_request;
       int is_first_request = 1;
@@ -704,8 +725,11 @@ void accept_connection(void)
       int header_parsed = 0;
       int done = 0;
       int size;
-      while (!done && !is_incorrect_request && (size = socket_read(client_socket, buffer)) > 0)
+      while (!done && !is_incorrect_request && (size = READ(SOCK, buffer, MAX_REQUEST_SIZE)) > 0)
       {
+#ifdef USE_SSL
+         printf("ctx %d\n", ssl == NULL);
+#endif
          buffer[size] = '\0';
          char *buffer_ptr = buffer;
          http_request.path = NULL;
@@ -755,12 +779,11 @@ void accept_connection(void)
          http_request_write_log(&http_request);
       }
       free_http_request_args(&http_request);
-      if (tls)
-      {
-         SSL_shutdown(ssl);
-         SSL_free(ssl);
-         ssl = NULL;
-      }
+#ifdef USE_SSL
+      SSL_shutdown(ssl);
+      SSL_free(ssl);
+      ssl = NULL;
+#endif
       close(client_socket);
    }
 }
@@ -768,11 +791,11 @@ void accept_connection(void)
 void start_server(int port)
 {
    signal(SIGINT, sigint_handler);
-   if (tls)
-   {
-      initialize_ssl();
-      ctx = create_ssl_context();
-   }
+#ifdef USE_SSL
+   printf("init\n");
+   initialize_ssl();
+   ctx = create_ssl_context();
+#endif
 
    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1)
    {
@@ -825,9 +848,8 @@ void start_server(int port)
 
    while (wait(NULL) > 0)
       ;
-   if (tls)
-   {
-      SSL_CTX_free(ctx);
-   }
+#ifdef USE_SSL
+   SSL_CTX_free(ctx);
+#endif
    close(sock);
 }

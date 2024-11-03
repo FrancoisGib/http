@@ -9,30 +9,44 @@ LFLAGS = -lssl -lcrypto
 INCLUDE = -I./include
 STATIC = -L/usr/local/openssl/lib64 -I/usr/local/openssl/include -static
 
-OBJECTS = lib.o \
-			 linked_list.o \
-          tree.o \
-          http_tree.o \
-			 logger.o \
-			 ssl.o \
-			 http.o
+FILES = lib \
+		  linked_list \
+		  tree \
+		  http_tree \
+		  logger \
+		  http
+
+FILES_SSL = ssl \
+				$(FILES)
+
+OBJECTS = $(addsuffix .o, $(FILES_SSL))
+OBJECTS_NO_SSL = $(addsuffix -no-ssl.o, $(FILES))
 
 SRC_DIR = src
 BUILD_DIR = build
 
 OBJECTS_DIR = $(addprefix $(BUILD_DIR)/, $(OBJECTS))
+OBJECTS_DIR_NO_SSL = $(addprefix $(BUILD_DIR)/, $(OBJECTS_NO_SSL))
+
+SSL = -DUSE_SSL
 
 dir:
 	mkdir -p $(BUILD_DIR)
 
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
+	$(CC) $(SSL) $(CFLAGS) -c $< -o $@ $(INCLUDE)
+
+$(BUILD_DIR)/%-no-ssl.o: $(SRC_DIR)/%.c
 	$(CC) $(CFLAGS) -c $< -o $@ $(INCLUDE)
 
 http: dir $(OBJECTS_DIR)
-	$(CC) $(CFLAGS) -o http $(SRC_DIR)/main.c $(OBJECTS_DIR) $(INCLUDE) $(LFLAGS)
+	$(CC) $(SSL) $(CFLAGS) -o http $(SRC_DIR)/main.c $(OBJECTS_DIR) $(INCLUDE) $(LFLAGS)
 
-docker-image: dir $(OBJECTS_DIR)
-	$(CC) -o http $(SRC_DIR)/main.c $(OBJECTS_DIR) $(INCLUDE) $(STATIC) $(LFLAGS)
+http-no-ssl: dir $(OBJECTS_DIR_NO_SSL)
+	$(CC) $(CFLAGS) -o http $(SRC_DIR)/main.c $(OBJECTS_DIR_NO_SSL) $(INCLUDE)
+
+docker-image: dir $(OBJECTS_DIR_NO_SSL)
+	$(CC) $(CFLAGS) -o http $(SRC_DIR)/main.c $(OBJECTS_DIR_NO_SSL) $(INCLUDE)
 	docker build -t http-server .
 
 clean:

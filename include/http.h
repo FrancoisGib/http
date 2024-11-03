@@ -18,55 +18,13 @@
 #include "http_tree.h"
 #include "logger.h"
 #include "vars.h"
-#include "http_status.h"
-#include "content_type.h"
+#include "http_structs.h"
 
-// #ifdef SSL
+#ifdef USE_SSL
 #include "ssl.h"
-// #endif
+#endif
 
 typedef struct sockaddr_in sockaddr_in_t;
-
-typedef struct
-{
-   int index;
-   int sock;
-   tree_t *endpoints;
-} thread_params_t;
-
-typedef struct
-{
-   char *name;
-   char *value;
-} header_t;
-
-typedef struct http_request_s
-{
-   char *method;
-   char *path;
-   char *http_version;
-   ll_node_t *headers;
-   int headers_length;
-   char *body;
-   int content_length;
-} http_request_t;
-
-typedef union
-{
-   char *file_path;
-   char *content;
-} response_resource_u;
-
-typedef struct http_response_s
-{
-   response_resource_u resource;
-   ll_node_t *headers;
-   int content_length;
-   content_type_e content_type;
-   http_status_e status;
-} http_response_t;
-
-typedef char *(*resource_function)(http_request_t *);
 
 void sigint_handler(int code);
 void construct_response(int client_socket, http_request_t *http_request);
