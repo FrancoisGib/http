@@ -22,13 +22,11 @@ const char *get_endpoint_type(endpoint_type_e type)
 content_type_e get_content_type_with_file_extension(char *path)
 {
    content_type_e content_type = NULL_CONTENT;
-   printf("get_content_type_with_file_extension : %s\n", path);
    char *extension = search_last_occurence(path, '.');
    if (extension != NULL)
    {
       extension++;
    }
-   printf("%s\n", extension);
    if (extension != NULL)
    {
       if (strcmp(extension, "js") == 0)

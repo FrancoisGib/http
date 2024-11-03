@@ -31,7 +31,8 @@ void construct_response(int client_socket, http_request_t *http_request);
 int http_request_parse_request_line(http_request_t *http_request, char **request_ptr);
 int http_request_parse_headers(http_request_t *http_request, char **request_ptr);
 int http_request_parse_body(http_request_t *http_request, char **request_ptr);
-void *http_request_write_log_wrapper(void *http_request);
+void free_http_request(http_request_t *http_request);
+void free_http_response(http_response_t *http_response);
 void accept_connection(void);
 void start_server(int port);
 

@@ -3,7 +3,7 @@
 extern int sock;
 extern int nb_processes;
 extern tree_t *http_tree;
-extern http_response_t error_response;
+extern endpoint_t *error_endpoint;
 
 char *test_function(http_request_t *http_request)
 {
@@ -40,7 +40,8 @@ int main(int argc, char **argv)
        {"/build", {{.content = "examples/app/build"}, ET_DIRECTORY, NULL_CONTENT, HTTP_STATUS_OK}},
    };
 
-   error_response = (http_response_t){{.content = "Error"}, NULL, strlen("Error"), TEXT, HTTP_STATUS_OK};
+   endpoint_t error = (endpoint_t){"", {{.content = "Error"}, ET_TEXT, TEXT, HTTP_STATUS_OK}};
+   error_endpoint = &error;
 
    http_tree = build_http_tree(endpoints, sizeof(endpoints) / sizeof(endpoint_t));
    print_http_tree(http_tree, 0);

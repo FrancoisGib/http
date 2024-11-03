@@ -3,5 +3,5 @@
 
 #define MAX_FILE_READ_SIZE 1024
 #ifndef NB_PROCESSES
-#define NB_PROCESSES 10
+#define NB_PROCESSES 5
 #endif

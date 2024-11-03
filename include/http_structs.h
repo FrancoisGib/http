@@ -11,6 +11,15 @@ typedef union
    char *content;
 } response_resource_u;
 
+typedef enum
+{
+   ET_FILE,
+   ET_DIRECTORY,
+   ET_TEXT,
+   ET_PATH,
+   ET_FUNC
+} endpoint_type_e;
+
 typedef struct http_response_s
 {
    response_resource_u resource;
@@ -18,6 +27,7 @@ typedef struct http_response_s
    int content_length;
    content_type_e content_type;
    http_status_e status;
+   endpoint_type_e endpoint_type;
 } http_response_t;
 
 typedef struct http_request_s
@@ -38,15 +48,6 @@ typedef union
    resource_function function;
    char *content;
 } resource_t;
-
-typedef enum
-{
-   ET_FILE,
-   ET_DIRECTORY,
-   ET_TEXT,
-   ET_PATH,
-   ET_FUNC
-} endpoint_type_e;
 
 typedef struct
 {
