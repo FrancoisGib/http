@@ -27,8 +27,6 @@ int read_file(char buffer[MAX_FILE_READ_SIZE], char *file_path)
    return -1;
 }
 
-// extern ssize_t pread(int fd, void *buf, size_t count, off_t offset);
-
 int read_file_block(char buffer[MAX_FILE_READ_SIZE], int fd, int block)
 {
    return (int)pread(fd, buffer, MAX_FILE_READ_SIZE, MAX_FILE_READ_SIZE * block);

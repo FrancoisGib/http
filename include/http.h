@@ -33,12 +33,6 @@ typedef struct
 
 typedef struct sockaddr_in sockaddr_in_t;
 
-void sigint_handler(int code);
-void construct_response(int client_socket, http_req_res_t *http_req_res);
-void *http_req_res_write_log_and_free(void *arg);
-void free_http_request(http_request_t *http_request);
-void free_http_response(http_response_t *http_response);
-void accept_connection(void);
 void start_server(int port);
 
 #endif // HTTP_H
