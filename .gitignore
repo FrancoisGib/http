@@ -1,4 +1,5 @@
 *.o
 http
-objects
+tests_main
+build
 logs
