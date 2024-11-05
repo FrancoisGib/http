@@ -41,7 +41,13 @@ typedef struct http_request_s
    int content_length;
 } http_request_t;
 
-typedef char *(*resource_function)(http_request_t *);
+typedef struct
+{
+   http_request_t *request;
+   http_response_t *response;
+} http_req_res_t;
+
+typedef void (*resource_function)(http_req_res_t *);
 
 typedef union
 {

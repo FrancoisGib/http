@@ -5,11 +5,13 @@ extern int nb_processes;
 extern tree_t *http_tree;
 extern endpoint_t *error_endpoint;
 
-char *test_function(http_request_t *http_request)
+void test_function(http_req_res_t *http_req_res)
 {
-   char *str = malloc(strlen("<p>test</p>") + 1);
-   strcpy(str, "<p>test</p>");
-   return str;
+   char *content = "<p>Response from server !</p>";
+   int content_length = strlen(content);
+   http_req_res->response->resource.content = malloc(content_length + 1);
+   strcpy(http_req_res->response->resource.content, content);
+   http_req_res->response->content_length = content_length;
 }
 
 int main(int argc, char **argv)
@@ -35,7 +37,7 @@ int main(int argc, char **argv)
    const endpoint_t endpoints[] = {
        {"/hostname", {{.content = hostname}, ET_TEXT, TEXT, HTTP_STATUS_OK}},
        {"/", {{.content = "examples/index.html"}, ET_FILE, HTML, HTTP_STATUS_OK}},
-       {"/test", {{.function = test_function}, ET_FUNC, HTML, HTTP_STATUS_CREATED}},
+       {"/func", {{.function = test_function}, ET_FUNC, HTML, HTTP_STATUS_CREATED}},
        {"/public", {{.content = "examples/public"}, ET_DIRECTORY, NULL_CONTENT, HTTP_STATUS_OK}},
        {"/build", {{.content = "examples/app/build"}, ET_DIRECTORY, NULL_CONTENT, HTTP_STATUS_OK}},
    };

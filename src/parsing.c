@@ -101,14 +101,24 @@ int http_request_parse_headers(http_request_t *http_request, char **request_ptr)
          referee_path += 2;
          referee_path = strchr(referee_path, '/');
          referee_path++;
+         int diff_size;
+         if (get_content_type_with_file_extension(referee_path) != NULL_CONTENT)
+         {
+            referee_path = strchr(header->value, '/');
+            referee_path += 2;
+            referee_path = strchr(referee_path, '/');
+         }
          char *referer_directory_end_pointer = search_last_occurence(referee_path, '/');
-         int diff_size = referer_directory_end_pointer - referee_path;
+         diff_size = referer_directory_end_pointer - referee_path;
          if (referee_path != NULL && diff_size > 0)
          {
             char *new_path = malloc(diff_size + strlen(http_request->path) + 1);
             memset(new_path, 0, diff_size + strlen(http_request->path) + 1);
             strncpy(new_path, referee_path, diff_size);
             new_path[diff_size] = '\0';
+
+            char *rest = NULL;
+            http_request->path = strtok_r(http_request->path, "?", &rest); // remove params from path (will be changed in the future to parse params differently)
             if (strncmp(new_path, http_request->path + 1, strlen(new_path)) == 0)
             {
                strcat(new_path, http_request->path + strlen(new_path) + 1);

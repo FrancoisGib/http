@@ -104,17 +104,38 @@ endpoint_t *get_endpoint(tree_t *tree, char *path)
 
    char *rest = path;
    char *first_part = strtok_r(rest, "/", &rest);
-   if (strcmp(first_part, tree_endpoint->path) == 0 && *rest == '\0')
+   char *path_variables = NULL; // The path variable part will be improved in the future
+   strtok_r(first_part, "?", &path_variables);
+   if (*first_part == '?' && *path_variables == '\0')
    {
-      return tree_endpoint;
+      *first_part = '\0';
+   }
+
+   if (strncmp(first_part, tree_endpoint->path, strlen(tree_endpoint->path)) == 0 && *rest == '\0') // strlen(tree_endpoint->path) because if path is / then it will always be false
+   {
+      ll_node_t *children = tree->children;
+      while (children != NULL)
+      {
+         tree_t *child = children->element;
+         endpoint_t *child_endpoint = get_endpoint(child, first_part);
+         if (child_endpoint != NULL)
+         {
+            return child_endpoint;
+         }
+         children = children->next;
+      }
+      if (tree_endpoint->response.type == ET_DIRECTORY || strcmp(first_part, tree_endpoint->path) == 0)
+      {
+         return tree_endpoint;
+      }
    }
 
    ll_node_t *children = tree->children;
-   tree_t *child;
    while (children != NULL)
    {
-      child = children->element;
+      tree_t *child = children->element;
       endpoint_t *child_endpoint = (endpoint_t *)child->element;
+
       if (strncmp(child_endpoint->path, path, strlen(child_endpoint->path)) == 0 && child_endpoint->response.type == ET_DIRECTORY)
       {
          return child_endpoint;

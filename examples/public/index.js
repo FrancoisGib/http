@@ -1,9 +1,7 @@
-const submitQuery = () => {
-   const nameInput = document.getElementById("name-input");
-   const passwordInput = document.getElementById("password-input");
-   if (nameInput.value != "" && passwordInput != "") {
-      fetch("/", { method: "POST" });
-   }
+const submitQuery = async () => {
+   const res = await fetch("/func", { method: "POST" });
+   const data = await res.text();
+   document.getElementById("fetch-res-p").innerHTML = data;
 }
 
 document.getElementById("fetch-button").addEventListener("click", submitQuery);

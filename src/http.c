@@ -93,45 +93,47 @@ void http_response_build_type_et_text(http_response_t *http_response, endpoint_t
    http_response->content_length = strlen(endpoint->response.resource.content);
 }
 
-void http_response_build_type_et_func(http_response_t *http_response, http_request_t *http_request, endpoint_t *endpoint, char response_buffer[MAX_RESPONSE_SIZE])
+void http_response_build_type_et_func(http_req_res_t *http_req_res, endpoint_t *endpoint, char response_buffer[MAX_RESPONSE_SIZE])
 {
    resource_function function = endpoint->response.resource.function;
-   char *response_content = function(http_request);
-   http_response->content_length = strlen(response_content);
-   strcpy(response_buffer, response_content);
-   free(response_content);
+   function(http_req_res);
+   if (http_req_res->response->content_length > 0)
+   {
+      strcpy(response_buffer, http_req_res->response->resource.content);
+   }
 }
 
 int http_response_build_type_et_directory(http_response_t *http_response, http_request_t *http_request, endpoint_t *endpoint)
 {
    char *path_ptr = http_request->path;
    int size = strlen(path_ptr);
-   while (size > 0 && strcmp(path_ptr, endpoint->path) != 0)
+   if (strlen(endpoint->path) > 0) // if path is not /
    {
-      path_ptr++;
-      size--;
+      while (size > 0 && strcmp(path_ptr, endpoint->path) != 0)
+      {
+         path_ptr++;
+         size--;
+      }
    }
    path_ptr += strlen(endpoint->path) + 1;
-   if (*path_ptr != '\0')
+   char *file_path = malloc(strlen(path_ptr) + strlen(endpoint->response.resource.content) + 2); // pass the \0 made by get_endpoint
+                                                                                                 // add 1 more if there's no / at the end of the directory path
+   strcpy(file_path, endpoint->response.resource.content);
+   int file_path_size = (int)strlen(endpoint->response.resource.content);
+   file_path[file_path_size] = '/'; // always / at the end
+   file_path[file_path_size + 1] = '\0';
+   strcat(file_path, path_ptr);
+   http_response->resource.file_path = file_path;
+   http_response->content_type = get_content_type_with_file_extension(http_response->resource.file_path);
+   stat_t st;
+   stat(file_path, &st);
+   if (stat(file_path, &st) != -1 && !S_ISDIR(st.st_mode))
    {
-      char *file_path = malloc(strlen(path_ptr) + strlen(endpoint->response.resource.content) + 2); // pass the \0 made by get_endpoint
-                                                                                                    // add 1 more if there's no / at the end of the directory path
-      strcpy(file_path, endpoint->response.resource.content);
-      int file_path_size = (int)strlen(endpoint->response.resource.content);
-      file_path[file_path_size] = '/'; // always / at the end
-      file_path[file_path_size + 1] = '\0';
-      strcat(file_path, path_ptr);
-      http_response->resource.file_path = file_path;
-      http_response->content_type = get_content_type_with_file_extension(http_response->resource.file_path);
-      stat_t st;
-      stat(file_path, &st);
-      if (stat(file_path, &st) != -1)
-      {
-         http_response->content_length = (int)st.st_size;
-         return 0;
-      }
-      free(file_path);
+      http_response->content_length = (int)st.st_size;
+      return 0;
    }
+
+   free(file_path);
    return -1;
 }
 
@@ -218,8 +220,9 @@ void http_response_send_et_file(http_response_t *http_response, char response_bu
    }
 }
 
-void http_response_build_by_type(http_response_t *http_response, endpoint_t *endpoint, char response_content_buffer[MAX_RESPONSE_SIZE], http_request_t *http_request)
+void http_response_build_by_type(http_req_res_t *http_req_res, endpoint_t *endpoint, char response_content_buffer[MAX_RESPONSE_SIZE], http_request_t *http_request)
 {
+   http_response_t *http_response = http_req_res->response;
    http_response->status = endpoint->response.status;
    http_response->content_type = endpoint->response.content_type;
    http_response->endpoint_type = endpoint->response.type;
@@ -235,7 +238,7 @@ void http_response_build_by_type(http_response_t *http_response, endpoint_t *end
       break;
 
    case ET_FUNC:
-      http_response_build_type_et_func(http_response, http_request, endpoint, response_content_buffer);
+      http_response_build_type_et_func(http_req_res, endpoint, response_content_buffer);
       break;
 
    case ET_DIRECTORY:
@@ -248,7 +251,7 @@ void http_response_build_by_type(http_response_t *http_response, endpoint_t *end
 
    if (res == -1)
    {
-      http_response_build_by_type(http_response, error_endpoint, response_content_buffer, http_request);
+      http_response_build_by_type(http_req_res, error_endpoint, response_content_buffer, http_request);
    }
 }
 
@@ -263,7 +266,7 @@ void construct_response(int client_socket, http_req_res_t *http_req_res)
    }
    char response_content_buffer[MAX_RESPONSE_SIZE];
    memset(response_content_buffer, 0, MAX_RESPONSE_SIZE);
-   http_response_build_by_type(http_response, endpoint, response_content_buffer, http_request);
+   http_response_build_by_type(http_req_res, endpoint, response_content_buffer, http_request);
 
    char response_buffer[MAX_RESPONSE_SIZE] = "HTTP/1.1 ";
 
@@ -304,7 +307,8 @@ void construct_response(int client_socket, http_req_res_t *http_req_res)
 
    case ET_TEXT:
       strcat(response_buffer, response_content_buffer);
-      written_size = WRITE(SOCK, response_buffer, response_length + http_response->content_length);
+      response_length += http_response->content_length;
+      written_size = WRITE(SOCK, response_buffer, response_length);
       if (written_size != response_length)
       {
          printf("Error sending file\n");
@@ -313,11 +317,17 @@ void construct_response(int client_socket, http_req_res_t *http_req_res)
 
    case ET_FUNC:
       strcat(response_buffer, response_content_buffer);
-      written_size = WRITE(SOCK, response_buffer, response_length + http_response->content_length);
+      response_length += http_response->content_length;
+      written_size = WRITE(SOCK, response_buffer, response_length);
       if (written_size != response_length)
       {
-         printf("Error sending content\n");
+         printf("Error sending content, written size %d, expected %d\n", written_size, response_length);
       }
+      else
+      {
+         printf("Success sending content\n");
+      }
+      free(http_response->resource.content);
       break;
 
    default:
@@ -416,11 +426,8 @@ void accept_connection(void)
       http_request->content_length = 0;
       http_request->headers_length = 0;
 
-      http_response_t *http_response = malloc(sizeof(http_response_t));
-      http_response->headers = NULL;
       http_req_res_t *http_req_res = malloc(sizeof(http_req_res_t));
       http_req_res->request = http_request;
-      http_req_res->response = http_response;
 
       char buffer[MAX_REQUEST_SIZE];
       int is_first_request = 1;
@@ -465,16 +472,19 @@ void accept_connection(void)
          }
          memset(buffer, 0, size);
       }
-      if (size == -1 || is_incorrect_request)
+      if (!(size == -1 || is_incorrect_request))
       {
-         free_http_request(http_request);
-         free_http_response(http_response);
-         free(http_req_res);
-         printf("Error with the request\n");
+         http_response_t *http_response = malloc(sizeof(http_response_t));
+         http_response->headers = NULL;
+         http_req_res->response = http_response;
+         construct_response(client_socket, http_req_res);
       }
       else
       {
-         construct_response(client_socket, http_req_res);
+         printf("Error with the request\n");
+      }
+      if (LOGGING)
+      {
          pthread_t log_thread;
          pthread_create(&log_thread, NULL, http_req_res_write_log_and_free, (void *)http_req_res);
          pthread_detach(log_thread);

@@ -20,4 +20,7 @@ COPY --from=build /app/http ./
 COPY examples ./examples
 COPY cert ./cert
 
+EXPOSE 8080
+LABEL AUTHOR="François Gibier"
+
 CMD ["./http", "8080"]

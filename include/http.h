@@ -25,12 +25,6 @@
 #include "ssl.h"
 #endif
 
-typedef struct
-{
-   http_request_t *request;
-   http_response_t *response;
-} http_req_res_t;
-
 typedef struct sockaddr_in sockaddr_in_t;
 
 void start_server(int port);
